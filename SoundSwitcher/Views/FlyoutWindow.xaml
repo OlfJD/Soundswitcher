@@ -1,0 +1,300 @@
+<Window x:Class="SoundSwitcher.Views.FlyoutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:SoundSwitcher.Views"
+        mc:Ignorable="d"
+        Title="SoundSwitcher"
+        Width="350"
+        SizeToContent="Height"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True">
+
+    <Window.Resources>
+        <!-- Window Fade-in Animation -->
+        <Storyboard x:Key="FadeInStory">
+            <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0.0" To="1.0" Duration="0:0:0.16">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                             From="6" To="0" Duration="0:0:0.16">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+        </Storyboard>
+    </Window.Resources>
+
+    <Window.RenderTransform>
+        <TranslateTransform Y="0"/>
+    </Window.RenderTransform>
+
+    <!-- Main Floating Pill Container with Tight Screen-Hugging Shadow Margin -->
+    <Grid Margin="6">
+        <Border Background="#12141B"
+                BorderBrush="#252D3E"
+                BorderThickness="1"
+                CornerRadius="18"
+                Padding="15,10"
+                MouseLeftButtonDown="Window_MouseLeftButtonDown"
+                Cursor="SizeAll">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="16"
+                                  Color="#000000"
+                                  Opacity="0.55"
+                                  ShadowDepth="3"
+                                  Direction="270"/>
+            </Border.Effect>
+
+            <StackPanel Cursor="Arrow">
+                <!-- EXPANDABLE SETTINGS & DEVICE CONFIGURATION PANEL (Unfolds UPWARD while bottom bar stays anchored) -->
+                <StackPanel x:Name="SettingsPanel" Visibility="Collapsed" Margin="0,2,0,10">
+                    <!-- SECTION 4: ACTIONS / LINKS (At the top of the expanded menu) -->
+                    <Grid Margin="2,2,2,8">
+                        <Button Content="Windows Sound Settings"
+                                FontSize="11"
+                                Foreground="#C4B5FD"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Cursor="Hand"
+                                HorizontalAlignment="Left"
+                                Click="OpenWindowsSoundSettings_Click"/>
+
+                        <Button Content="Quit SoundSwitcher"
+                                FontSize="11"
+                                Foreground="#EF4444"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Cursor="Hand"
+                                HorizontalAlignment="Right"
+                                Click="QuitBtn_Click"/>
+                    </Grid>
+
+                    <!-- SECTION 3: PREFERENCES -->
+                    <Border Background="#171A24"
+                            BorderBrush="#252D3E"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="12,10"
+                            Margin="0,0,0,10">
+                        <StackPanel>
+                            <TextBlock Text="OPTIONS"
+                                       FontSize="10"
+                                       FontWeight="Bold"
+                                       Foreground="#64748B"
+                                       Margin="0,0,0,8"/>
+
+                            <!-- Startup with Windows -->
+                            <CheckBox x:Name="StartupCheckBox"
+                                      Style="{StaticResource ModernSwitch}"
+                                      Content="Start with Windows"
+                                      FontSize="11.5"
+                                      Margin="0,0,0,10"
+                                      Checked="StartupCheckBox_Changed"
+                                      Unchecked="StartupCheckBox_Changed"/>
+
+                            <!-- Direct Tray Toggle Switch -->
+                            <CheckBox x:Name="DirectTrayToggleCheckBox"
+                                      Style="{StaticResource ModernSwitch}"
+                                      Content="Direct toggle on tray icon click"
+                                      FontSize="11.5"
+                                      Checked="DirectTrayToggleCheckBox_Changed"
+                                      Unchecked="DirectTrayToggleCheckBox_Changed"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- SECTION 2: VOLUME & MUTE -->
+                    <Border Background="#171A24"
+                            BorderBrush="#252D3E"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="10,8"
+                            Margin="0,0,0,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Mute Button -->
+                            <Button x:Name="MuteBtn"
+                                    Grid.Column="0"
+                                    Style="{StaticResource IconButton}"
+                                    Width="28" Height="28"
+                                    Margin="0,0,8,0"
+                                    Click="MuteBtn_Click"
+                                    ToolTip="Toggle Mute">
+                                <Viewbox Width="15" Height="15" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Canvas Width="24" Height="24">
+                                        <Path x:Name="MuteVectorPath"
+                                              Data="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z M16 9a5 5 0 0 1 0 6 M19.364 18.364a9 9 0 0 0 0-12.728"
+                                              Stroke="#E2E8F0"
+                                              StrokeThickness="2"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"
+                                              StrokeLineJoin="Round"
+                                              Fill="#E2E8F0"/>
+                                    </Canvas>
+                                </Viewbox>
+                            </Button>
+
+                            <!-- Volume Slider -->
+                            <Slider x:Name="VolumeSlider"
+                                    Grid.Column="1"
+                                    Style="{StaticResource ModernSlider}"
+                                    Minimum="0"
+                                    Maximum="100"
+                                    ValueChanged="VolumeSlider_ValueChanged"
+                                    VerticalAlignment="Center"/>
+
+                            <!-- Volume Text -->
+                            <TextBlock x:Name="VolumeText"
+                                       Grid.Column="2"
+                                       Text="100%"
+                                       FontSize="11.5"
+                                       FontWeight="SemiBold"
+                                       Foreground="#94A3B8"
+                                       Width="38"
+                                       TextAlignment="Right"
+                                       VerticalAlignment="Center"
+                                       Margin="6,0,0,0"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- SECTION 1: TOGGLE AUDIO DEVICES CONFIGURATION -->
+                    <Border Background="#171A24"
+                            BorderBrush="#252D3E"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="12,10"
+                            Margin="0,0,0,2">
+                        <StackPanel>
+                            <TextBlock Text="TOGGLE AUDIO DEVICES"
+                                       FontSize="10"
+                                       FontWeight="Bold"
+                                       Foreground="#64748B"
+                                       Margin="0,0,0,8"/>
+
+                            <!-- Device 1 (Red / Left) -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <TextBlock Text="● " FontSize="10" Foreground="#F87171" VerticalAlignment="Center"/>
+                                <TextBlock Text="Device 1 (Toggle Left / Red):"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="#FCA5A5"/>
+                            </StackPanel>
+                            <ComboBox x:Name="DeviceAComboBox"
+                                      Style="{StaticResource ModernComboBox}"
+                                      ItemTemplate="{StaticResource AudioDeviceComboTemplate}"
+                                      SelectionChanged="DeviceAComboBox_SelectionChanged"
+                                      Margin="0,0,0,10"/>
+
+                            <!-- Device 2 (Green / Right) -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <TextBlock Text="● " FontSize="10" Foreground="#34D399" VerticalAlignment="Center"/>
+                                <TextBlock Text="Device 2 (Toggle Right / Green):"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="#86EFAC"/>
+                            </StackPanel>
+                            <ComboBox x:Name="DeviceBComboBox"
+                                      Style="{StaticResource ModernComboBox}"
+                                      ItemTemplate="{StaticResource AudioDeviceComboTemplate}"
+                                      SelectionChanged="DeviceBComboBox_SelectionChanged"
+                                      Margin="0,0,0,2"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Subtle Divider separating settings above and bottom main bar -->
+                    <Border Height="1" Background="#202737" Margin="0,10,0,0"/>
+                </StackPanel>
+
+                <!-- BOTTOM MAIN BAR: Title, Active Subtitle, Hero Toggle Switch & Settings Button -->
+                <Grid x:Name="MainRowGrid" MinHeight="34">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Left: App Title & Subtitle -->
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="2,0,10,0">
+                        <TextBlock Text="Soundswitcher"
+                                   FontFamily="Georgia, Cambria, 'Times New Roman', Segoe UI, sans-serif"
+                                   FontSize="17.5"
+                                   FontWeight="Normal"
+                                   Foreground="#F3F4F6"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock x:Name="ActiveDeviceSubtitle"
+                                   Text="Loading devices..."
+                                   FontSize="10.5"
+                                   Foreground="#6B7280"
+                                   TextTrimming="CharacterEllipsis"
+                                   MaxWidth="180"
+                                   Margin="1,1,0,0"/>
+                    </StackPanel>
+
+                    <!-- Right: Toggle Switch, Settings Button & Close Button -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- Dual Audio Toggle Switch -->
+                        <CheckBox x:Name="MainToggleSwitch"
+                                  Style="{StaticResource HeroToggleSwitch}"
+                                  VerticalAlignment="Center"
+                                  Margin="0,0,8,0"
+                                  Click="MainToggleSwitch_Click"
+                                  ToolTip="Switch audio device"/>
+
+                        <!-- Settings Button (Centered Lucide Cog Icon) -->
+                        <Button x:Name="SettingsBtn"
+                                Style="{StaticResource IconButton}"
+                                Width="30" Height="30"
+                                Click="SettingsBtn_Click"
+                                ToolTip="Settings &amp; Audio Devices"
+                                VerticalAlignment="Center"
+                                Margin="0,0,3,0">
+                            <Viewbox Width="17" Height="17" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Canvas Width="24" Height="24">
+                                    <Path x:Name="SettingsVectorPath"
+                                          Data="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"
+                                          Stroke="#9CA3AF"
+                                          StrokeThickness="2"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          Fill="Transparent"/>
+                                </Canvas>
+                            </Viewbox>
+                        </Button>
+
+                        <!-- Close / Minimize to Tray Button -->
+                        <Button x:Name="CloseBtn"
+                                Style="{StaticResource IconButton}"
+                                Width="26" Height="26"
+                                Click="CloseBtn_Click"
+                                ToolTip="Minimize to Tray (✕)"
+                                VerticalAlignment="Center">
+                            <Viewbox Width="12" Height="12" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Canvas Width="24" Height="24">
+                                    <Path Data="M18 6L6 18 M6 6l12 12"
+                                          Stroke="#94A3B8"
+                                          StrokeThickness="2.2"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"/>
+                                </Canvas>
+                            </Viewbox>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

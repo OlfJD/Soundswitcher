@@ -9,30 +9,84 @@ namespace SoundSwitcher;
 public partial class App : System.Windows.Application
 {
     private static Mutex? _mutex;
+    private static bool _ownsMutex;
     private AudioController? _audioController;
     private SettingsManager? _settingsManager;
     private TrayManager? _trayManager;
     private FlyoutWindow? _flyoutWindow;
+    private Window? _dummyHwndHost;
+
+    private void InitDummyHwndHost()
+    {
+        _dummyHwndHost = new Window
+        {
+            Width = 1,
+            Height = 1,
+            WindowStyle = WindowStyle.None,
+            ShowInTaskbar = false,
+            AllowsTransparency = true,
+            Background = System.Windows.Media.Brushes.Transparent,
+            Left = -10000,
+            Top = -10000,
+            ShowActivated = false
+        };
+        _dummyHwndHost.Show();
+    }
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        const string mutexName = "SoundSwitcher_Unique_App_Mutex";
-        _mutex = new Mutex(true, mutexName, out bool isNewInstance);
-
-        if (!isNewInstance)
+        AppDomain.CurrentDomain.UnhandledException += (s, args) =>
         {
-            // Another instance is already running
-            Shutdown();
-            return;
+            try
+            {
+                string crashPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log");
+                System.IO.File.AppendAllText(crashPath, $"[{DateTime.Now}] UNHANDLED: {args.ExceptionObject}\n");
+            }
+            catch { }
+        };
+
+        DispatcherUnhandledException += (s, args) =>
+        {
+            try
+            {
+                string crashPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log");
+                System.IO.File.AppendAllText(crashPath, $"[{DateTime.Now}] DISPATCHER: {args.Exception}\n");
+            }
+            catch { }
+            args.Handled = true;
+        };
+
+        const string mutexName = "SoundSwitcher_Unique_App_Mutex";
+        try
+        {
+            _mutex = new Mutex(true, mutexName, out bool isNewInstance);
+            _ownsMutex = isNewInstance;
+            if (!_ownsMutex)
+            {
+                Shutdown();
+                return;
+            }
+        }
+        catch (AbandonedMutexException)
+        {
+            _ownsMutex = true;
+        }
+        catch
+        {
+            _ownsMutex = false;
         }
 
         base.OnStartup(e);
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        InitDummyHwndHost();
 
         try
         {
-            if (!System.IO.File.Exists("App.ico") && !System.IO.File.Exists("app.ico"))
+            string appDir = AppDomain.CurrentDomain.BaseDirectory;
+            string iconPath = System.IO.Path.Combine(appDir, "App.ico");
+            if (!System.IO.File.Exists(iconPath))
             {
-                IconGenerator.GenerateAppIcon("App.ico");
+                IconGenerator.GenerateAppIcon(iconPath);
             }
         }
         catch { }
@@ -41,8 +95,10 @@ public partial class App : System.Windows.Application
         {
             _audioController = new AudioController();
             _settingsManager = new SettingsManager();
+            _settingsManager.SyncStartupRegistration();
 
             _flyoutWindow = new FlyoutWindow(_audioController, _settingsManager);
+            MainWindow = _flyoutWindow;
 
             _trayManager = new TrayManager(
                 _audioController,
@@ -55,6 +111,11 @@ public partial class App : System.Windows.Application
                     });
                 }
             );
+
+            MemoryOptimizer.Initialize();
+            _flyoutWindow.Show();
+            _flyoutWindow.Hide();
+            Dispatcher.InvokeAsync(MemoryOptimizer.TrimWorkingSet, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
         catch (Exception ex)
         {
@@ -67,8 +128,16 @@ public partial class App : System.Windows.Application
     {
         _trayManager?.Dispose();
         _audioController?.Dispose();
-        _mutex?.ReleaseMutex();
-        _mutex?.Dispose();
+        try
+        {
+            if (_ownsMutex && _mutex != null)
+            {
+                _mutex.ReleaseMutex();
+            }
+        }
+        catch { }
+        try { _mutex?.Dispose(); } catch { }
+        _mutex = null;
         base.OnExit(e);
     }
 }

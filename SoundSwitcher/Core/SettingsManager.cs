@@ -50,8 +50,13 @@ public class SettingsManager
             System.Diagnostics.Debug.WriteLine($"Error loading settings: {ex.Message}");
         }
 
-        // Sync startup setting with actual registry status
-        Settings.LaunchOnStartup = IsStartupEnabled();
+        // Self-heal and synchronize registry with current executable location
+        SyncStartupRegistration(Settings.LaunchOnStartup);
+    }
+
+    public void SyncStartupRegistration()
+    {
+        SyncStartupRegistration(Settings.LaunchOnStartup);
     }
 
     public void Save()
@@ -61,7 +66,7 @@ public class SettingsManager
             Directory.CreateDirectory(SettingsFolder);
             string json = JsonSerializer.Serialize(Settings, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(SettingsFilePath, json);
-            SetStartup(Settings.LaunchOnStartup);
+            SyncStartupRegistration(Settings.LaunchOnStartup);
         }
         catch (Exception ex)
         {
@@ -69,12 +74,36 @@ public class SettingsManager
         }
     }
 
+    public static string GetExecutablePath()
+    {
+        string? procPath = Environment.ProcessPath;
+        if (!string.IsNullOrEmpty(procPath) && Path.GetExtension(procPath).Equals(".exe", StringComparison.OrdinalIgnoreCase) && !Path.GetFileName(procPath).Equals("dotnet.exe", StringComparison.OrdinalIgnoreCase))
+        {
+            return procPath;
+        }
+
+        string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        string directExe = Path.Combine(baseDir, "SoundSwitcher.exe");
+        if (File.Exists(directExe)) return directExe;
+
+        DirectoryInfo? parent = Directory.GetParent(baseDir);
+        while (parent != null)
+        {
+            string candidate = Path.Combine(parent.FullName, "SoundSwitcher.exe");
+            if (File.Exists(candidate)) return candidate;
+            parent = parent.Parent;
+        }
+
+        return directExe;
+    }
+
     public static bool IsStartupEnabled()
     {
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(StartupRegistryKey, false);
-            return key?.GetValue(AppName) != null;
+            var val = key?.GetValue(AppName)?.ToString();
+            return !string.IsNullOrWhiteSpace(val);
         }
         catch
         {
@@ -82,19 +111,22 @@ public class SettingsManager
         }
     }
 
-    public static void SetStartup(bool enable)
+    public static void SyncStartupRegistration(bool shouldEnable)
     {
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(StartupRegistryKey, true);
             if (key == null) return;
 
-            if (enable)
+            string currentExe = GetExecutablePath();
+            string expectedVal = $"\"{currentExe}\"";
+
+            if (shouldEnable)
             {
-                string exePath = Environment.ProcessPath ?? "";
-                if (!string.IsNullOrEmpty(exePath))
+                var currentVal = key.GetValue(AppName)?.ToString();
+                if (!string.Equals(currentVal?.Trim('\"'), currentExe, StringComparison.OrdinalIgnoreCase))
                 {
-                    key.SetValue(AppName, $"\"{exePath}\"");
+                    key.SetValue(AppName, expectedVal);
                 }
             }
             else
@@ -109,5 +141,10 @@ public class SettingsManager
         {
             System.Diagnostics.Debug.WriteLine($"Error configuring startup: {ex.Message}");
         }
+    }
+
+    public static void SetStartup(bool enable)
+    {
+        SyncStartupRegistration(enable);
     }
 }

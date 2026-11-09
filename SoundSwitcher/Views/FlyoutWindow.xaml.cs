@@ -31,7 +31,23 @@ public partial class FlyoutWindow : Window
     private List<AudioDevice> _devices = new();
     private AudioDevice? _deviceA;
     private AudioDevice? _deviceB;
+    private AudioDevice? _currentDefault;
     private bool _isUpdatingUi;
+
+    private const string SpeakerOnPath = "M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z M16 9a5 5 0 0 1 0 6 M19.364 18.364a9 9 0 0 0 0-12.728";
+    private const string SpeakerMutedPath = "M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z M22 9l-6 6 M16 9l6 6";
+    private static readonly Geometry SpeakerOnGeometry = Freeze(Geometry.Parse(SpeakerOnPath));
+    private static readonly Geometry SpeakerMutedGeometry = Freeze(Geometry.Parse(SpeakerMutedPath));
+    private static readonly SolidColorBrush MutedBrush = Freeze(new SolidColorBrush(Color.FromRgb(239, 68, 68)));
+    private static readonly SolidColorBrush UnmutedBrush = Freeze(new SolidColorBrush(Color.FromRgb(226, 232, 240)));
+    private static readonly SolidColorBrush SettingsActiveBrush = Freeze(new SolidColorBrush(Color.FromRgb(167, 139, 250))); // #A78BFA Pastel Lavender
+    private static readonly SolidColorBrush SettingsIdleBrush = Freeze(new SolidColorBrush(Color.FromRgb(156, 163, 175)));
+
+    private static T Freeze<T>(T freezable) where T : Freezable
+    {
+        freezable.Freeze();
+        return freezable;
+    }
 
     public FlyoutWindow(AudioController audioController, SettingsManager settingsManager)
     {
@@ -41,9 +57,29 @@ public partial class FlyoutWindow : Window
 
         Loaded += FlyoutWindow_Loaded;
         Deactivated += FlyoutWindow_Deactivated;
+        Closing += (s, e) =>
+        {
+            e.Cancel = true;
+            Hide();
+        };
 
-        _audioController.DevicesChanged += () => Dispatcher.Invoke(RefreshUI);
-        _audioController.DefaultDeviceChanged += _ => Dispatcher.Invoke(RefreshUI);
+        // Raised on the UI thread and also covers default-device changes
+        _audioController.DevicesChanged += RefreshUI;
+
+        // Mouse wheel over the slider nudges the volume
+        VolumeSlider.PreviewMouseWheel += (s, e) =>
+        {
+            VolumeSlider.Value = Math.Clamp(VolumeSlider.Value + (e.Delta > 0 ? 2 : -2), VolumeSlider.Minimum, VolumeSlider.Maximum);
+            e.Handled = true;
+        };
+
+        IsVisibleChanged += (s, e) =>
+        {
+            if (!IsVisible)
+            {
+                Dispatcher.InvokeAsync(MemoryOptimizer.TrimWorkingSet, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            }
+        };
     }
 
     private void FlyoutWindow_Loaded(object sender, RoutedEventArgs e)
@@ -144,10 +180,13 @@ public partial class FlyoutWindow : Window
         try
         {
             _devices = _audioController.GetPlaybackDevices();
-            var currentDefault = _audioController.GetDefaultPlaybackDevice();
+            var currentDefault = _devices.FirstOrDefault(d => d.IsDefault) ?? _devices.FirstOrDefault();
+            _currentDefault = currentDefault;
 
             if (_devices.Count > 0)
             {
+                MainToggleSwitch.IsEnabled = true;
+
                 string? favA = _settingsManager.Settings.FavoriteDeviceA_Id;
                 string? favB = _settingsManager.Settings.FavoriteDeviceB_Id;
 
@@ -204,20 +243,10 @@ public partial class FlyoutWindow : Window
                 VolumeSlider.Value = currentDefault.Volume;
                 VolumeText.Text = $"{(int)currentDefault.Volume}%";
                 
-                if (currentDefault.IsMuted)
-                {
-                    MuteVectorPath.Data = Geometry.Parse("M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z M22 9l-6 6 M16 9l6 6");
-                    MuteVectorPath.Stroke = new SolidColorBrush(Color.FromRgb(239, 68, 68));
-                    MuteVectorPath.Fill = new SolidColorBrush(Color.FromRgb(239, 68, 68));
-                    MuteBtn.Opacity = 0.75;
-                }
-                else
-                {
-                    MuteVectorPath.Data = Geometry.Parse("M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z M16 9a5 5 0 0 1 0 6 M19.364 18.364a9 9 0 0 0 0-12.728");
-                    MuteVectorPath.Stroke = new SolidColorBrush(Color.FromRgb(226, 232, 240));
-                    MuteVectorPath.Fill = new SolidColorBrush(Color.FromRgb(226, 232, 240));
-                    MuteBtn.Opacity = 1.0;
-                }
+                MuteVectorPath.Data = currentDefault.IsMuted ? SpeakerMutedGeometry : SpeakerOnGeometry;
+                MuteVectorPath.Stroke = currentDefault.IsMuted ? MutedBrush : UnmutedBrush;
+                MuteVectorPath.Fill = currentDefault.IsMuted ? MutedBrush : UnmutedBrush;
+                MuteBtn.Opacity = currentDefault.IsMuted ? 0.75 : 1.0;
             }
             else
             {
@@ -281,9 +310,7 @@ public partial class FlyoutWindow : Window
     {
         bool isOpening = SettingsPanel.Visibility != Visibility.Visible;
         SettingsPanel.Visibility = isOpening ? Visibility.Visible : Visibility.Collapsed;
-        SettingsVectorPath.Stroke = isOpening 
-            ? new SolidColorBrush(Color.FromRgb(167, 139, 250)) // #A78BFA Pastel Lavender
-            : new SolidColorBrush(Color.FromRgb(156, 163, 175));
+        SettingsVectorPath.Stroke = isOpening ? SettingsActiveBrush : SettingsIdleBrush;
 
         // Re-anchor window position so expanding or collapsing keeps bottom docked above taskbar
         UpdatePosition();
@@ -303,10 +330,10 @@ public partial class FlyoutWindow : Window
         if (_isUpdatingUi) return;
 
         VolumeText.Text = $"{(int)e.NewValue}%";
-        var defaultDev = _audioController.GetDefaultPlaybackDevice();
-        if (defaultDev != null)
+        // Use the device cached by RefreshUI: re-enumerating every device on each drag step is expensive
+        if (_currentDefault != null)
         {
-            _audioController.SetDeviceVolume(defaultDev.Id, (float)e.NewValue);
+            _audioController.SetDeviceVolume(_currentDefault.Id, (float)e.NewValue);
         }
     }
 

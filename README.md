@@ -26,7 +26,7 @@
 
 ## ✨ Features
 
-- **Ultra-Low Memory Footprint**: Idles at ~**6–10 MB of RAM** and 0% CPU.
+- **Ultra-Low Memory Footprint (< 10 MB RAM)**: Idles in the system tray at **below 10 MB of RAM** and 0% CPU. Features an active memory reclamation engine that automatically compacts and releases working set memory back to the OS the moment the flyout is minimized or closed with **✕**.
 - **System Tray Background App**: Sits discreetly in the Windows taskbar notification area.
 - **Minimalist Floating Pill Widget & Quick Toggle**:
   - **Always on Top**: Pinned above other windows (`HWND_TOPMOST`).

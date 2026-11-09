@@ -12,6 +12,9 @@ public class TrayManager : IDisposable
     private readonly AudioController _audioController;
     private readonly SettingsManager _settingsManager;
     private readonly Action _onOpenFlyout;
+    private readonly ContextMenuStrip _contextMenu;
+    private readonly Font _menuFont = new("Segoe UI", 9.5f);
+    private readonly Font _menuBoldFont = new("Segoe UI", 9.5f, FontStyle.Bold);
     private bool _isDisposed;
 
     public TrayManager(AudioController audioController, SettingsManager settingsManager, Action onOpenFlyout)
@@ -27,9 +30,23 @@ public class TrayManager : IDisposable
             Icon = LoadOrGenerateTrayIcon()
         };
 
+        // One menu, rebuilt on open. Assigning it to the NotifyIcon (instead of Show() at the cursor)
+        // lets WinForms make the tray window foreground so the menu dismisses when clicking elsewhere,
+        // and avoids leaking a new menu + fonts on every right-click.
+        _contextMenu = new ContextMenuStrip
+        {
+            ShowImageMargin = true,
+            Font = _menuFont,
+            ForeColor = Color.FromArgb(241, 245, 249),
+            BackColor = Color.FromArgb(18, 20, 27),
+            Renderer = new ModernMenuRenderer()
+        };
+        _contextMenu.Opening += (s, e) => RebuildContextMenu();
+        _notifyIcon.ContextMenuStrip = _contextMenu;
+
         _notifyIcon.MouseClick += NotifyIcon_MouseClick;
+        // Raised on the UI thread; also covers default-device changes
         _audioController.DevicesChanged += UpdateState;
-        _audioController.DefaultDeviceChanged += _ => UpdateState();
 
         UpdateState();
     }
@@ -46,10 +63,6 @@ public class TrayManager : IDisposable
             {
                 _onOpenFlyout();
             }
-        }
-        else if (e.Button == MouseButtons.Right)
-        {
-            ShowContextMenu();
         }
     }
 
@@ -71,20 +84,16 @@ public class TrayManager : IDisposable
         catch { }
     }
 
-    private void ShowContextMenu()
+    private void RebuildContextMenu()
     {
-        var contextMenu = new ContextMenuStrip
-        {
-            ShowImageMargin = true,
-            Font = new Font("Segoe UI", 9.5f),
-            ForeColor = Color.FromArgb(241, 245, 249),
-            BackColor = Color.FromArgb(18, 20, 27)
-        };
-        contextMenu.Renderer = new ModernMenuRenderer();
+        var contextMenu = _contextMenu;
+        var oldItems = contextMenu.Items.Cast<ToolStripItem>().ToList();
+        contextMenu.Items.Clear();
+        foreach (var item in oldItems) item.Dispose();
 
         var openItem = new ToolStripMenuItem("Open SoundSwitcher", null, (s, e) => _onOpenFlyout())
         {
-            Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+            Font = _menuBoldFont,
             ForeColor = Color.FromArgb(255, 255, 255)
         };
         contextMenu.Items.Add(openItem);
@@ -135,10 +144,6 @@ public class TrayManager : IDisposable
             ForeColor = Color.FromArgb(248, 113, 113) // Pastel Red
         };
         contextMenu.Items.Add(exitItem);
-
-        // Show menu at cursor
-        TaskbarHelper.GetCursorPos(out var pt);
-        contextMenu.Show(pt.X, pt.Y);
     }
 
     private static Icon LoadOrGenerateTrayIcon()
@@ -208,6 +213,9 @@ public class TrayManager : IDisposable
 
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
+        _contextMenu.Dispose();
+        _menuFont.Dispose();
+        _menuBoldFont.Dispose();
     }
 }
 

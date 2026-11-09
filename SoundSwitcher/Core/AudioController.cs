@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
+using System.Windows.Threading;
 using static SoundSwitcher.Core.AudioNative;
 
 namespace SoundSwitcher.Core;
@@ -9,13 +11,20 @@ namespace SoundSwitcher.Core;
 public class AudioController : IMMNotificationClient, IDisposable
 {
     private IMMDeviceEnumerator? _enumerator;
-    private bool _isDisposed;
+    private volatile bool _isDisposed;
+    private readonly Dispatcher _dispatcher;
+    private readonly object _pendingLock = new();
+    private bool _notifyQueued;
+    private string? _pendingDefaultId;
 
+    /// <summary>Raised on the UI thread, coalesced, after any device / default-device change.</summary>
     public event Action? DevicesChanged;
+    /// <summary>Raised on the UI thread right before <see cref="DevicesChanged"/> when the default device changed.</summary>
     public event Action<string>? DefaultDeviceChanged;
 
     public AudioController()
     {
+        _dispatcher = System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
         try
         {
             _enumerator = (IMMDeviceEnumerator)new MMDeviceEnumerator();
@@ -150,9 +159,8 @@ public class AudioController : IMMNotificationClient, IDisposable
             policy.SetDefaultEndpoint(deviceId, ERole.eMultimedia);
             policy.SetDefaultEndpoint(deviceId, ERole.eCommunications);
             Marshal.ReleaseComObject(policy);
-            
-            DefaultDeviceChanged?.Invoke(deviceId);
-            DevicesChanged?.Invoke();
+
+            QueueChangeNotification(deviceId);
             return true;
         }
         catch (Exception ex)
@@ -214,7 +222,7 @@ public class AudioController : IMMNotificationClient, IDisposable
         var devices = GetPlaybackDevices();
         if (devices.Count == 0) return false;
 
-        var currentDefault = GetDefaultPlaybackDevice();
+        var currentDefault = devices.FirstOrDefault(d => d.IsDefault) ?? devices[0];
 
         // If current is Device B and Device A is available, switch to Device A
         if (currentDefault != null && !string.IsNullOrEmpty(deviceBId) && currentDefault.Id == deviceBId && !string.IsNullOrEmpty(deviceAId))
@@ -260,34 +268,76 @@ public class AudioController : IMMNotificationClient, IDisposable
         return raw.Trim();
     }
 
+    /// <summary>
+    /// CoreAudio calls IMMNotificationClient on its own MTA thread and forbids blocking or releasing
+    /// device objects inside the callback (a blocked callback also deadlocks Unregister on exit).
+    /// So callbacks only queue a notification; bursts (one callback per role on every switch, plus
+    /// property changes) are coalesced into a single event raised asynchronously on the UI thread.
+    /// </summary>
+    private void QueueChangeNotification(string? newDefaultId = null)
+    {
+        if (_isDisposed) return;
+        lock (_pendingLock)
+        {
+            if (newDefaultId != null) _pendingDefaultId = newDefaultId;
+            if (_notifyQueued) return;
+            _notifyQueued = true;
+        }
+
+        _dispatcher.InvokeAsync(async () =>
+        {
+            await Task.Delay(120);
+            FlushChangeNotification();
+        });
+    }
+
+    private void FlushChangeNotification()
+    {
+        string? defaultId;
+        lock (_pendingLock)
+        {
+            defaultId = _pendingDefaultId;
+            _pendingDefaultId = null;
+            _notifyQueued = false;
+        }
+        if (_isDisposed) return;
+
+        if (defaultId != null) DefaultDeviceChanged?.Invoke(defaultId);
+        DevicesChanged?.Invoke();
+    }
+
     #region IMMNotificationClient implementation
-    public void OnDeviceStateChanged(string pwstrDeviceId, uint dwNewState)
+    public int OnDeviceStateChanged(string pwstrDeviceId, uint dwNewState)
     {
-        DevicesChanged?.Invoke();
+        QueueChangeNotification();
+        return 0;
     }
 
-    public void OnDeviceAdded(string pwstrDeviceId)
+    public int OnDeviceAdded(string pwstrDeviceId)
     {
-        DevicesChanged?.Invoke();
+        QueueChangeNotification();
+        return 0;
     }
 
-    public void OnDeviceRemoved(string pwstrDeviceId)
+    public int OnDeviceRemoved(string pwstrDeviceId)
     {
-        DevicesChanged?.Invoke();
+        QueueChangeNotification();
+        return 0;
     }
 
-    public void OnDefaultDeviceChanged(EDataFlow flow, ERole role, string pwstrDefaultDeviceId)
+    public int OnDefaultDeviceChanged(EDataFlow flow, ERole role, string pwstrDefaultDeviceId)
     {
         if (flow == EDataFlow.eRender && (role == ERole.eMultimedia || role == ERole.eConsole))
         {
-            DefaultDeviceChanged?.Invoke(pwstrDefaultDeviceId);
-            DevicesChanged?.Invoke();
+            QueueChangeNotification(pwstrDefaultDeviceId);
         }
+        return 0;
     }
 
-    public void OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key)
+    public int OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key)
     {
-        DevicesChanged?.Invoke();
+        QueueChangeNotification();
+        return 0;
     }
     #endregion
 

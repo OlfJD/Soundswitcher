@@ -1,0 +1,224 @@
+<title>SoundSwitcher Stormtrooper Board</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<style>
+  /* Layout: intro, then two decisions, each a wrapping grid of lettered/numbered cards; mock surfaces keep the app's own fixed colours. */
+  :root {
+    --bg: #f3f4f6; --surface: #ffffff; --fg: #17181c; --muted: #5d606a; --line: #dadce2; --accent: #2f3fc4;
+    --ui: "Inter", "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #0f1013; --surface: #18191d; --fg: #ececf0; --muted: #9c9ea8; --line: #2c2d33; --accent: #a3abff; color-scheme: dark } }
+  :root[data-theme="dark"] { --bg: #0f1013; --surface: #18191d; --fg: #ececf0; --muted: #9c9ea8; --line: #2c2d33; --accent: #a3abff; color-scheme: dark }
+
+  body { background: var(--bg); color: var(--fg); font-family: var(--ui); font-size: 15px; line-height: 1.5;
+         padding-block: 28px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .wrap { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+  h1 { font-size: 26px; font-weight: 600; letter-spacing: -.01em; margin: 0 0 6px; text-wrap: balance; }
+  h2 { font-size: 19px; font-weight: 600; margin: 0 0 4px; text-wrap: balance; }
+  p { margin: 0; color: var(--muted); max-width: 72ch; }
+  .how { color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; max-width: none; }
+  section { display: flex; flex-direction: column; gap: 14px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 18px; }
+  .opt { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .tag { display: flex; align-items: baseline; gap: 8px; font-weight: 600; flex-wrap: wrap; }
+  .tag b { color: var(--accent); font-size: 20px; }
+  .now { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 0 5px; font-weight: 500; }
+  .opt > p { font-size: 13.5px; }
+
+  .ctl { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .ctl > span { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-right: 4px; }
+  .ctl button { font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 6px; padding: 4px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .ctl button[aria-pressed="true"] { border-color: var(--fg); box-shadow: inset 0 0 0 1px var(--fg); }
+  .ctl button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .ctl .sw { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,.35); }
+
+  /* ---------- Flyout mock (true size: 320 px wide, like the app) ---------- */
+  .stage { background: var(--s-stage); border-radius: 8px; padding: 22px 12px; display: grid; place-items: center; overflow: hidden; }
+  .fly { width: 100%; max-width: 320px; box-sizing: border-box; font-family: "Inter", "Segoe UI", sans-serif; font-size: 13px; line-height: 1.3;
+         color: var(--s-fg); background: var(--s-bg); border: var(--s-framew) solid var(--s-frame); border-radius: 16px; padding: 10px;
+         box-shadow: 0 6px 24px rgba(0,0,0,var(--s-shadow)); display: flex; flex-direction: column; gap: 8px; }
+  .card { background: var(--s-raise); border: var(--s-olw) solid var(--s-ol); border-radius: 12px; padding: 0 12px; }
+  .r { display: flex; align-items: center; justify-content: space-between; height: 40px; gap: 10px; }
+  .div { height: var(--s-divw, 1px); background: var(--s-line); }
+  .seg { display: inline-flex; background: var(--s-bg); border: var(--s-olw) solid var(--s-ol); border-radius: 8px; padding: 2px; font-size: 12px; }
+  .seg span { padding: 3px 9px; border-radius: 6px; color: var(--s-mut); }
+  .seg span.on { background: var(--s-act); color: var(--s-actfg); font-weight: 500; }
+  .tg { width: 34px; height: 20px; border-radius: 10px; background: var(--s-act); border: var(--s-olw) solid var(--s-ol); position: relative; box-sizing: border-box; flex: none; }
+  .tg::after { content: ""; position: absolute; top: 50%; right: 3px; width: 12px; height: 12px; margin-top: -6px; border-radius: 50%; background: var(--s-actfg); }
+  .hd { display: flex; align-items: center; padding: 0 0 0 6px; color: var(--s-mut); font-size: 12px; }
+  .hd .g { flex: 1; }
+  .ib { width: 28px; height: 28px; display: grid; place-items: center; color: var(--s-mut); }
+  .i { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; }
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tile { background: var(--s-raise); border: var(--s-olw) solid var(--s-ol); border-radius: 12px; padding: 12px; position: relative; min-width: 0; }
+  .tile .i { width: 22px; height: 22px; }
+  .tile .nm { font-weight: 600; margin-top: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile .dt { font-size: 11.5px; opacity: .6; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile.on { background: var(--s-act); color: var(--s-actfg); border-color: var(--s-actol, var(--s-ol)); }
+  .ck { position: absolute; top: 10px; right: 10px; width: 18px; height: 18px; border-radius: 50%; background: var(--s-actfg); color: var(--s-act); display: grid; place-items: center; }
+  .ck .i { width: 10px; height: 10px; stroke-width: 3.5; }
+  .vol { display: flex; align-items: center; gap: 8px; padding: 0 4px 0 2px; }
+  .vol .ib { color: var(--s-fg); }
+  .sl { flex: 1; height: var(--s-track, 4px); border-radius: 3px; background: var(--s-line2); position: relative; margin-right: 4px; }
+  .sl i { position: absolute; inset: 0 36% 0 0; border-radius: 3px; background: var(--s-act); }
+  .sl i::after { content: ""; position: absolute; right: -8px; top: 50%; width: 16px; height: 16px; margin-top: -8px; border-radius: 50%; box-sizing: border-box;
+                 background: var(--s-thumb); border: var(--s-thumbw, 0px) solid var(--s-ol); box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+  .vn { color: var(--s-mut); font-variant-numeric: tabular-nums; min-width: 22px; text-align: right; }
+
+  /* A — current Stormtrooper (no outlines) */
+  .s-a { --s-stage:#d9dbe0; --s-bg:#ffffff; --s-raise:#f3f3f4; --s-fg:#0a0a0a; --s-mut:#6e6e76; --s-line:rgba(0,0,0,.08); --s-line2:rgba(0,0,0,.2);
+         --s-ol:transparent; --s-olw:1.5px; --s-frame:rgba(0,0,0,.16); --s-framew:1px; --s-act:#0a0a0a; --s-actfg:#ffffff; --s-thumb:#0a0a0a; --s-shadow:.18; }
+  /* B — Porcelain: warm off-white, hairline black outlines */
+  .s-b { --s-stage:#d9dbe0; --s-bg:#f6f5f1; --s-raise:#e9e7e2; --s-fg:#1f1f1f; --s-mut:#66635d; --s-line:#1f1f1f; --s-line2:#c9c6bf;
+         --s-ol:#1f1f1f; --s-olw:1.5px; --s-frame:#1f1f1f; --s-framew:1.5px; --s-act:#1f1f1f; --s-actfg:#f6f5f1; --s-thumb:#f6f5f1; --s-thumbw:1.5px; --s-shadow:.16; }
+  /* C — Chalk & Charcoal: Google's cool greys */
+  .s-c { --s-stage:#d9dbe0; --s-bg:#ffffff; --s-raise:#f1f3f4; --s-fg:#202124; --s-mut:#5f6368; --s-line:#dadce0; --s-line2:#dadce0;
+         --s-ol:#202124; --s-olw:1.5px; --s-frame:#202124; --s-framew:1.5px; --s-act:#202124; --s-actfg:#ffffff; --s-thumb:#ffffff; --s-thumbw:1.5px; --s-shadow:.16; }
+  /* D — Armour: bold 2 px black, grey plates on white */
+  .s-d { --s-stage:#d9dbe0; --s-bg:#ffffff; --s-raise:#e8eaed; --s-fg:#000000; --s-mut:#4a4d52; --s-line:#000000; --s-divw:2px; --s-line2:#bdc1c6; --s-track:6px;
+         --s-ol:#000000; --s-olw:2px; --s-frame:#000000; --s-framew:2px; --s-act:#000000; --s-actfg:#ffffff; --s-thumb:#ffffff; --s-thumbw:2px; --s-shadow:.2; }
+  /* E — Fog shell: grey body, white outlined panels on top */
+  .s-e { --s-stage:#d9dbe0; --s-bg:#dadce0; --s-raise:#ffffff; --s-fg:#202124; --s-mut:#3c4043; --s-line:#dadce0; --s-line2:#9aa0a6;
+         --s-ol:#202124; --s-olw:1.5px; --s-frame:#202124; --s-framew:1.5px; --s-act:#202124; --s-actfg:#ffffff; --s-thumb:#ffffff; --s-thumbw:1.5px; --s-shadow:.2; }
+
+  /* ---------- Icons ---------- */
+  .icons { --tile:#f7b58a; --glyph:#12142b; --ring:none; --ringw:0; }
+  .icons[data-c="coral"]  { --tile:#f28b82; }
+  .icons[data-c="butter"] { --tile:#f5d06b; }
+  .icons[data-c="lilac"]  { --tile:#c3a6f5; }
+  .icons[data-c="mint"]   { --tile:#a8dab5; }
+  .icons[data-c="storm"]  { --tile:#f8f9fa; --glyph:#202124; --ring:#202124; --ringw:3; }
+  svg.ic { display: block; flex: none; }
+  svg.ic .t { fill: var(--tile); stroke: var(--ring); stroke-width: var(--ringw); }
+  svg.ic .gl { color: var(--glyph); }
+  .sizes { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; padding: 6px 2px; }
+  .sizes figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .sizes figcaption { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .bars { display: flex; flex-direction: column; gap: 6px; }
+  .bar { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 6px; }
+  .bar.dark { background: #202020; }
+  .bar.light { background: #eef0f3; }
+  .bar .lb { font-size: 11px; margin-left: auto; color: #8a8d94; }
+  .bar .me { outline: 1px dashed #8a8d94; outline-offset: 3px; border-radius: 4px; }
+  .gl-now { fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="nowg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0e74f4"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient>
+    <!-- glyphs on a 24 grid, flat like MacroMaster's M and SmartNotes' notes -->
+    <symbol id="g1" viewBox="0 0 24 24"><path d="M2.5 9h4l5.5-4.5v15L6.5 15h-4z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.7 5.3a9.5 9.5 0 0 1 0 13.4" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+    <symbol id="g2" viewBox="0 0 24 24"><rect x="2" y="5" width="9" height="14" rx="2.6" fill="currentColor"/><rect x="14.3" y="6.3" width="7.4" height="11.4" rx="1.8" fill="none" stroke="currentColor" stroke-width="2.6"/></symbol>
+    <symbol id="g3" viewBox="0 0 24 24"><path d="M3.5 8h15M14.5 3.8 18.7 8l-4.2 4.2M20.5 16h-15M9.5 11.8 5.3 16l4.2 4.2" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="g4" viewBox="0 0 24 24"><rect x="2.3" y="6.3" width="19.4" height="11.4" rx="5.7" fill="none" stroke="currentColor" stroke-width="2.6"/><circle cx="16" cy="12" r="3.4" fill="currentColor"/></symbol>
+    <symbol id="g5" viewBox="0 0 24 24"><path d="M4.3 15v-3a7.7 7.7 0 0 1 15.4 0v3" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><rect x="2.5" y="13" width="6" height="8" rx="2" fill="currentColor"/><rect x="15.5" y="13" width="6" height="8" rx="2" fill="currentColor"/></symbol>
+    <!-- flyout icons (Lucide-style, as in the app) -->
+    <symbol id="hp" viewBox="0 0 24 24"><path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"/></symbol>
+    <symbol id="spk" viewBox="0 0 24 24"><path d="M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM12 6h.01M16 14a4 4 0 1 1-8 0a4 4 0 1 1 8 0zM12 14h.01"/></symbol>
+    <symbol id="gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+    <symbol id="x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="ck" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="vol" viewBox="0 0 24 24"><path d="M11 4.7a.7.7 0 0 0-1.2-.5L6.4 7.6A1.4 1.4 0 0 1 5.4 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5zM16 9a5 5 0 0 1 0 6M19.4 18.4a9 9 0 0 0 0-12.8"/></symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <header>
+    <h1>SoundSwitcher: Stormtrooper look and app icon</h1>
+    <p>Everything is drawn at the app's real size (the flyout is 320 px wide). The size bump and the blurry-text fix aren't on this board: they're bugs, and they'll go in whichever look you pick.</p>
+  </header>
+  <p class="how">Reply with one letter for the look and one number for the icon, plus a colour from the switcher, for example <b>C, icon 2 in coral</b>. Tweaks are welcome ("D but with 1.5 px lines").</p>
+
+  <section aria-labelledby="h-look">
+    <div>
+      <h2 id="h-look">Stormtrooper look</h2>
+      <p>Each option is white and grey with black outlines on every panel, tile and control. The colours come from Google's hardware (Pixel and Nest), not from the films.</p>
+    </div>
+    <div class="grid" id="looks"></div>
+  </section>
+
+  <section aria-labelledby="h-icon">
+    <div>
+      <h2 id="h-icon">App icon</h2>
+      <p>These follow the same family as your other apps: a flat pastel tile with a dark navy symbol, no gradients or glow. The taskbar row puts each one next to MacroMaster and SmartNotes, and every size is shown, down to 16 px for the tray.</p>
+    </div>
+    <div class="ctl" id="cpick" role="group" aria-label="Tile colour">
+      <span>Tile colour</span>
+      <button data-c="peach" aria-pressed="true"><i class="sw" style="background:#f7b58a"></i>Peach</button>
+      <button data-c="coral" aria-pressed="false"><i class="sw" style="background:#f28b82"></i>Coral</button>
+      <button data-c="butter" aria-pressed="false"><i class="sw" style="background:#f5d06b"></i>Butter</button>
+      <button data-c="lilac" aria-pressed="false"><i class="sw" style="background:#c3a6f5"></i>Lilac</button>
+      <button data-c="mint" aria-pressed="false"><i class="sw" style="background:#a8dab5"></i>Mint</button>
+      <button data-c="storm" aria-pressed="false"><i class="sw" style="background:#f8f9fa;border-color:#202124"></i>Stormtrooper</button>
+    </div>
+    <div class="grid icons" id="icons"></div>
+  </section>
+</div>
+
+<script>
+  const ico = (id) => `<svg class="i"><use href="#${id}"/></svg>`;
+  const flyout = (cls) => `
+    <div class="stage ${cls}"><div class="fly">
+      <div class="card">
+        <div class="r"><span>Theme</span><span class="seg"><span>Dark</span><span class="on">Stormtrooper</span></span></div>
+        <div class="div"></div>
+        <div class="r"><span>Start with Windows</span><span class="tg"></span></div>
+      </div>
+      <div class="hd"><span class="g">Output</span><span class="ib">${ico('gear')}</span><span class="ib">${ico('x')}</span></div>
+      <div class="tiles">
+        <div class="tile on">${ico('hp')}<div class="nm">Arctis Nova 7</div><div class="dt">Headphones</div><span class="ck">${ico('ck')}</span></div>
+        <div class="tile">${ico('spk')}<div class="nm">Speakers</div><div class="dt">Realtek Audio</div></div>
+      </div>
+      <div class="vol"><span class="ib">${ico('vol')}</span><span class="sl"><i></i></span><span class="vn">64</span></div>
+    </div></div>`;
+
+  const looks = [
+    ['A', 'Current', 's-a', 'What v1.1.0 ships with: white and light grey, no outlines.', true],
+    ['B', 'Porcelain', 's-b', 'Warm off-white like the Pixel "Porcelain" finish, with thin 1.5 px black outlines. Soft and friendly.'],
+    ['C', 'Chalk & Charcoal', 's-c', 'Clean white with Google\'s cool greys and 1.5 px charcoal outlines. Closest to Google\'s own hardware and software.'],
+    ['D', 'Armour', 's-d', 'Bold 2 px pure-black lines and grey plates on white, with thicker dividers and slider. The most stormtrooper.'],
+    ['E', 'Fog shell', 's-e', 'Reversed: a grey body with white outlined panels on top, like a phone in a grey case.']
+  ];
+  document.getElementById('looks').innerHTML = looks.map(([k, n, c, d, now]) => `
+    <article class="opt"><div class="tag"><b>${k}</b>${n}${now ? '<span class="now">now</span>' : ''}</div><p>${d}</p>${flyout(c)}</article>`).join('');
+
+  // Icons ----------------------------------------------------------------------------------
+  const tile = (g, s) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 64 64">
+      <rect class="t" x="${s <= 24 ? 1.5 : 3}" y="${s <= 24 ? 1.5 : 3}" width="${s <= 24 ? 61 : 58}" height="${s <= 24 ? 61 : 58}" rx="14"/>
+      <svg class="gl" x="13" y="13" width="38" height="38" viewBox="0 0 24 24"><use href="#${g}"/></svg></svg>`;
+  const nowIcon = (s) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 64 64"><rect x="3" y="3" width="58" height="58" rx="16" fill="url(#nowg)"/>
+      <svg x="14" y="14" width="36" height="36" viewBox="0 0 24 24"><path class="gl-now" d="M11 5 6 9H2v6h4l5 4zM15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg></svg>`;
+  // Sibling apps, drawn from their generate_icon.ps1 numbers
+  const mm = (s) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="13" fill="#7c83ff"/>
+      <polygon fill="#11122b" points="16,44.8 16,19.2 25.6,19.2 32,27.4 38.4,19.2 48,19.2 48,44.8 40.3,44.8 40.3,29 32,39.7 23.7,29 23.7,44.8"/></svg>`;
+  const sn = (s) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="#74c7b8"/>
+      <rect x="22" y="9" width="33" height="33" rx="5" fill="#12142b" fill-opacity=".45"/><rect x="9" y="22" width="33" height="33" rx="5" fill="#12142b"/></svg>`;
+
+  const card = (label, name, desc, draw, now) => `
+    <article class="opt"><div class="tag"><b>${label}</b>${name}${now ? '<span class="now">now</span>' : ''}</div><p>${desc}</p>
+      <div class="sizes">${[128, 48, 32, 24, 16].map(s => `<figure>${draw(s)}<figcaption>${s}</figcaption></figure>`).join('')}</div>
+      <div class="bars">
+        <div class="bar dark">${mm(24)}${sn(24)}<span class="me">${draw(24)}</span><span class="lb">taskbar</span></div>
+        <div class="bar light">${mm(24)}${sn(24)}<span class="me">${draw(24)}</span><span class="lb">taskbar, light</span></div>
+        <div class="bar dark">${draw(16)}<span class="lb">tray, 16 px</span></div>
+      </div></article>`;
+
+  const icons = [
+    ['1', 'Speaker', 'A speaker with two sound waves. Says "audio" instantly, but it\'s the most generic.', 'g1'],
+    ['2', 'Two tiles', 'One filled tile and one outlined, mirroring the app\'s two device tiles. The one that\'s most "this app".', 'g2'],
+    ['3', 'Swap', 'Two arrows going back and forth. Says "switch" clearly, though not "sound" on its own.', 'g3'],
+    ['4', 'Toggle', 'A switch, flipped on. Simple and strong at 16 px.', 'g4'],
+    ['5', 'Headphones', 'Bold flat headphones. Reads as audio, and matches what you usually switch to.', 'g5']
+  ];
+  document.getElementById('icons').innerHTML =
+    card('–', 'Current', 'The tray icon the app draws today: a blue gradient tile. It isn\'t used as the exe icon yet.', nowIcon, true) +
+    icons.map(([k, n, d, g]) => card(k, n, d, (s) => tile(g, s))).join('');
+
+  const iconsEl = document.getElementById('icons');
+  document.getElementById('cpick').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    iconsEl.dataset.c = b.dataset.c;
+    document.querySelectorAll('#cpick button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  });
+</script>

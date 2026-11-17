@@ -82,17 +82,6 @@ public partial class App : System.Windows.Application
 
         try
         {
-            string appDir = AppDomain.CurrentDomain.BaseDirectory;
-            string iconPath = System.IO.Path.Combine(appDir, "App.ico");
-            if (!System.IO.File.Exists(iconPath))
-            {
-                IconGenerator.GenerateAppIcon(iconPath);
-            }
-        }
-        catch { }
-
-        try
-        {
             _audioController = new AudioController();
             _settingsManager = new SettingsManager();
             _settingsManager.SyncStartupRegistration();

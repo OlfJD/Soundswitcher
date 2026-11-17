@@ -2,7 +2,7 @@ using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
-using SoundSwitcher.Core;
+using SoundSwitcher.Views;
 
 namespace SoundSwitcher.Core;
 
@@ -12,9 +12,7 @@ public class TrayManager : IDisposable
     private readonly AudioController _audioController;
     private readonly SettingsManager _settingsManager;
     private readonly Action _onOpenFlyout;
-    private readonly ContextMenuStrip _contextMenu;
-    private readonly Font _menuFont = new("Segoe UI", 9.5f);
-    private readonly Font _menuBoldFont = new("Segoe UI", 9.5f, FontStyle.Bold);
+    private TrayMenuWindow? _menu;
     private bool _isDisposed;
 
     public TrayManager(AudioController audioController, SettingsManager settingsManager, Action onOpenFlyout)
@@ -30,20 +28,8 @@ public class TrayManager : IDisposable
             Icon = LoadOrGenerateTrayIcon()
         };
 
-        // One menu, rebuilt on open. Assigning it to the NotifyIcon (instead of Show() at the cursor)
-        // lets WinForms make the tray window foreground so the menu dismisses when clicking elsewhere,
-        // and avoids leaking a new menu + fonts on every right-click.
-        _contextMenu = new ContextMenuStrip
-        {
-            ShowImageMargin = true,
-            Font = _menuFont,
-            ForeColor = Color.FromArgb(241, 245, 249),
-            BackColor = Color.FromArgb(18, 20, 27),
-            Renderer = new ModernMenuRenderer()
-        };
-        _contextMenu.Opening += (s, e) => RebuildContextMenu();
-        _notifyIcon.ContextMenuStrip = _contextMenu;
-
+        // Right-click shows a themed WPF menu (just "Exit") instead of a WinForms ContextMenuStrip,
+        // so it matches the flyout in both themes.
         _notifyIcon.MouseClick += NotifyIcon_MouseClick;
         // Raised on the UI thread; also covers default-device changes
         _audioController.DevicesChanged += UpdateState;
@@ -63,6 +49,11 @@ public class TrayManager : IDisposable
             {
                 _onOpenFlyout();
             }
+        }
+        else if (e.Button == MouseButtons.Right)
+        {
+            _menu ??= new TrayMenuWindow();
+            _menu.ShowAtCursor();
         }
     }
 
@@ -84,86 +75,18 @@ public class TrayManager : IDisposable
         catch { }
     }
 
-    private void RebuildContextMenu()
-    {
-        var contextMenu = _contextMenu;
-        var oldItems = contextMenu.Items.Cast<ToolStripItem>().ToList();
-        contextMenu.Items.Clear();
-        foreach (var item in oldItems) item.Dispose();
-
-        var openItem = new ToolStripMenuItem("Open SoundSwitcher", null, (s, e) => _onOpenFlyout())
-        {
-            Font = _menuBoldFont,
-            ForeColor = Color.FromArgb(255, 255, 255)
-        };
-        contextMenu.Items.Add(openItem);
-
-        var quickToggle = new ToolStripMenuItem("Toggle Output Device", null, (s, e) => 
-            _audioController.ToggleBetween(_settingsManager.Settings.FavoriteDeviceA_Id, _settingsManager.Settings.FavoriteDeviceB_Id))
-        {
-            ForeColor = Color.FromArgb(241, 245, 249)
-        };
-        contextMenu.Items.Add(quickToggle);
-
-        contextMenu.Items.Add(new ToolStripSeparator());
-
-        var devices = _audioController.GetPlaybackDevices();
-        foreach (var dev in devices)
-        {
-            var devItem = new ToolStripMenuItem(dev.Name, null, (s, e) =>
-            {
-                _audioController.SetDefaultPlaybackDevice(dev.Id);
-            })
-            {
-                Checked = dev.IsDefault,
-                ForeColor = dev.IsDefault ? Color.FromArgb(167, 139, 250) : Color.FromArgb(226, 232, 240)
-            };
-            contextMenu.Items.Add(devItem);
-        }
-
-        contextMenu.Items.Add(new ToolStripSeparator());
-
-        var startupItem = new ToolStripMenuItem("Start with Windows", null, (s, e) =>
-        {
-            _settingsManager.Settings.LaunchOnStartup = !_settingsManager.Settings.LaunchOnStartup;
-            _settingsManager.Save();
-        })
-        {
-            Checked = _settingsManager.Settings.LaunchOnStartup,
-            ForeColor = Color.FromArgb(226, 232, 240)
-        };
-        contextMenu.Items.Add(startupItem);
-
-        contextMenu.Items.Add(new ToolStripSeparator());
-
-        var exitItem = new ToolStripMenuItem("Exit", null, (s, e) =>
-        {
-            System.Windows.Application.Current.Shutdown();
-        })
-        {
-            ForeColor = Color.FromArgb(248, 113, 113) // Pastel Red
-        };
-        contextMenu.Items.Add(exitItem);
-    }
-
     private static Icon LoadOrGenerateTrayIcon()
     {
+        // The icon is embedded in the exe (Assets/app.ico, made by generate_icon.ps1). Ask for the
+        // tray's real size so Windows picks the matching frame instead of scaling the 32 px one.
         try
         {
-            string appDir = AppDomain.CurrentDomain.BaseDirectory;
-            string[] candidates = {
-                System.IO.Path.Combine(appDir, "App.ico"),
-                System.IO.Path.Combine(appDir, "app.ico"),
-                "App.ico",
-                "app.ico"
-            };
-
-            foreach (var path in candidates)
+            var res = System.Windows.Application.GetResourceStream(
+                new Uri("pack://application:,,,/SoundSwitcher;component/Assets/app.ico", UriKind.Absolute));
+            if (res != null)
             {
-                if (System.IO.File.Exists(path))
-                {
-                    return new Icon(path);
-                }
+                using var stream = res.Stream;
+                return new Icon(stream, SystemInformation.SmallIconSize);
             }
         }
         catch { }
@@ -213,113 +136,5 @@ public class TrayManager : IDisposable
 
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
-        _contextMenu.Dispose();
-        _menuFont.Dispose();
-        _menuBoldFont.Dispose();
     }
-}
-
-internal class ModernMenuRenderer : ToolStripProfessionalRenderer
-{
-    public ModernMenuRenderer() : base(new ModernColorTable()) { }
-
-    protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
-    {
-        if (e.Item.Selected)
-        {
-            var rc = new Rectangle(3, 1, e.Item.Width - 6, e.Item.Height - 2);
-            using var b = new SolidBrush(Color.FromArgb(42, 34, 60)); // Pastel lavender dark hover
-            using var borderPen = new Pen(Color.FromArgb(100, 167, 139, 250), 1);
-            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            using var path = CreateRoundedRectangle(rc, 4);
-            e.Graphics.FillPath(b, path);
-            e.Graphics.DrawPath(borderPen, path);
-        }
-        else
-        {
-            base.OnRenderMenuItemBackground(e);
-        }
-    }
-
-    protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
-    {
-        e.TextColor = e.Item.Selected 
-            ? Color.White 
-            : (e.Item.ForeColor != Color.Empty && e.Item.ForeColor != SystemColors.ControlText 
-                ? e.Item.ForeColor 
-                : Color.FromArgb(241, 245, 249));
-        e.TextFont = e.Item.Font;
-        base.OnRenderItemText(e);
-    }
-
-    protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e)
-    {
-        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        var rc = new Rectangle(e.ImageRectangle.X + 2, e.ImageRectangle.Y + 2, e.ImageRectangle.Width - 4, e.ImageRectangle.Height - 4);
-        
-        // Draw modern circular checkmark
-        using var brush = new SolidBrush(Color.FromArgb(52, 211, 153)); // Pastel Mint
-        e.Graphics.FillEllipse(brush, rc);
-
-        using var pen = new Pen(Color.FromArgb(18, 20, 27), 2);
-        pen.StartCap = LineCap.Round;
-        pen.EndCap = LineCap.Round;
-        
-        float cx = rc.X + rc.Width / 2f;
-        float cy = rc.Y + rc.Height / 2f;
-        
-        e.Graphics.DrawLines(pen, new PointF[]
-        {
-            new PointF(cx - 3.5f, cy),
-            new PointF(cx - 1f, cy + 2.5f),
-            new PointF(cx + 3.5f, cy - 2.5f)
-        });
-    }
-
-    protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
-    {
-        int y = e.Item.Height / 2;
-        using var pen = new Pen(Color.FromArgb(37, 45, 62), 1);
-        e.Graphics.DrawLine(pen, 8, y, e.Item.Width - 8, y);
-    }
-
-    protected override void OnRenderImageMargin(ToolStripRenderEventArgs e)
-    {
-        using var brush = new SolidBrush(Color.FromArgb(18, 20, 27));
-        e.Graphics.FillRectangle(brush, e.AffectedBounds);
-    }
-
-    private static GraphicsPath CreateRoundedRectangle(Rectangle rect, int radius)
-    {
-        var path = new GraphicsPath();
-        int diameter = radius * 2;
-        path.AddArc(rect.X, rect.Y, diameter, diameter, 180, 90);
-        path.AddArc(rect.Right - diameter, rect.Y, diameter, diameter, 270, 90);
-        path.AddArc(rect.Right - diameter, rect.Bottom - diameter, diameter, diameter, 0, 90);
-        path.AddArc(rect.X, rect.Bottom - diameter, diameter, diameter, 90, 90);
-        path.CloseFigure();
-        return path;
-    }
-}
-
-internal class ModernColorTable : ProfessionalColorTable
-{
-    public override Color ToolStripDropDownBackground => Color.FromArgb(18, 20, 27);
-    public override Color MenuBorder => Color.FromArgb(37, 45, 62);
-    public override Color MenuItemBorder => Color.Transparent;
-    public override Color MenuItemSelected => Color.FromArgb(42, 34, 60);
-    public override Color MenuStripGradientBegin => Color.FromArgb(18, 20, 27);
-    public override Color MenuStripGradientEnd => Color.FromArgb(18, 20, 27);
-    public override Color MenuItemSelectedGradientBegin => Color.FromArgb(42, 34, 60);
-    public override Color MenuItemSelectedGradientEnd => Color.FromArgb(42, 34, 60);
-    public override Color MenuItemPressedGradientBegin => Color.FromArgb(35, 28, 50);
-    public override Color MenuItemPressedGradientEnd => Color.FromArgb(35, 28, 50);
-    public override Color ImageMarginGradientBegin => Color.FromArgb(18, 20, 27);
-    public override Color ImageMarginGradientMiddle => Color.FromArgb(18, 20, 27);
-    public override Color ImageMarginGradientEnd => Color.FromArgb(18, 20, 27);
-    public override Color CheckBackground => Color.FromArgb(28, 32, 44);
-    public override Color CheckSelectedBackground => Color.FromArgb(42, 34, 60);
-    public override Color CheckPressedBackground => Color.FromArgb(35, 28, 50);
-    public override Color SeparatorDark => Color.FromArgb(37, 45, 62);
-    public override Color SeparatorLight => Color.Transparent;
 }

@@ -10,6 +10,9 @@
             <ResourceDictionary Source="/SoundSwitcher;component/Themes/Dark.xaml"/>
         </ResourceDictionary.MergedDictionaries>
 
+        <!-- Whole-UI scale (layout transform keeps text and lines vector-sharp) -->
+        <ScaleTransform x:Key="UiScale" ScaleX="1.1" ScaleY="1.1"/>
+
         <!-- Typography: bundled Inter, falling back to the Windows UI font -->
         <FontFamily x:Key="AppFont">pack://application:,,,/SoundSwitcher;component/Fonts/#Inter, Segoe UI Variable Text, Segoe UI</FontFamily>
 
@@ -94,8 +97,8 @@
                     <ControlTemplate TargetType="{x:Type ToggleButton}">
                         <Border x:Name="Bd"
                                 Background="{DynamicResource RaiseBrush}"
-                                BorderBrush="Transparent"
-                                BorderThickness="1.5"
+                                BorderBrush="{DynamicResource TileBorderBrush}"
+                                BorderThickness="{DynamicResource TileBorderThickness}"
                                 CornerRadius="12"
                                 Padding="12">
                             <Grid>
@@ -152,7 +155,7 @@
                             <ContentPresenter VerticalAlignment="Center"/>
                             <Grid Grid.Column="1" Width="36" Height="20" Margin="12,0,0,0">
                                 <Border x:Name="Track" CornerRadius="10" Background="Transparent"
-                                        BorderBrush="{DynamicResource Line2Brush}" BorderThickness="1"/>
+                                        BorderBrush="{DynamicResource ControlBorderBrush}" BorderThickness="{DynamicResource ControlBorderThickness}"/>
                                 <Ellipse x:Name="Thumb" Width="12" Height="12" Fill="{DynamicResource MutedBrush}"
                                          HorizontalAlignment="Left" Margin="4,0,0,0"/>
                             </Grid>
@@ -180,14 +183,14 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type Slider}">
-                        <Grid VerticalAlignment="Center" Height="18" Background="Transparent">
+                        <Grid VerticalAlignment="Center" Height="20" Background="Transparent">
                             <Track x:Name="PART_Track">
                                 <Track.DecreaseRepeatButton>
                                     <RepeatButton Command="{x:Static Slider.DecreaseLarge}" Focusable="False">
                                         <RepeatButton.Template>
                                             <ControlTemplate TargetType="{x:Type RepeatButton}">
                                                 <Grid Background="Transparent">
-                                                    <Border Height="4" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,-7,0"/>
+                                                    <Border Height="{DynamicResource TrackHeight}" CornerRadius="3" Background="{DynamicResource AccentBrush}" Margin="0,0,-7,0"/>
                                                 </Grid>
                                             </ControlTemplate>
                                         </RepeatButton.Template>
@@ -198,7 +201,7 @@
                                         <RepeatButton.Template>
                                             <ControlTemplate TargetType="{x:Type RepeatButton}">
                                                 <Grid Background="Transparent">
-                                                    <Border Height="4" CornerRadius="2" Background="{DynamicResource Line2Brush}" Margin="-7,0,0,0"/>
+                                                    <Border Height="{DynamicResource TrackHeight}" CornerRadius="3" Background="{DynamicResource Line2Brush}" Margin="-7,0,0,0"/>
                                                 </Grid>
                                             </ControlTemplate>
                                         </RepeatButton.Template>
@@ -208,10 +211,10 @@
                                     <Thumb>
                                         <Thumb.Template>
                                             <ControlTemplate TargetType="{x:Type Thumb}">
-                                                <Ellipse Width="14" Height="14"
-                                                         Fill="{DynamicResource BgBrush}"
+                                                <Ellipse Width="{DynamicResource ThumbSize}" Height="{DynamicResource ThumbSize}"
+                                                         Fill="{DynamicResource ThumbFillBrush}"
                                                          Stroke="{DynamicResource AccentBrush}"
-                                                         StrokeThickness="1.5"/>
+                                                         StrokeThickness="{DynamicResource ThumbStrokeThickness}"/>
                                             </ControlTemplate>
                                         </Thumb.Template>
                                     </Thumb>
@@ -282,12 +285,13 @@
                             <Popup IsOpen="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}}"
                                    AllowsTransparency="True" Placement="Bottom" PopupAnimation="Fade"
                                    HorizontalOffset="0" VerticalOffset="4">
-                                <Border Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource Line2Brush}"
-                                        BorderThickness="1" CornerRadius="10" Padding="4" Margin="0,0,10,12"
+                                <Border Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource ControlBorderBrush}"
+                                        BorderThickness="{DynamicResource ControlBorderThickness}" CornerRadius="10" Padding="4" Margin="0,0,10,12"
+                                        LayoutTransform="{StaticResource UiScale}"
                                         MinWidth="{Binding ActualWidth, ElementName=Root}"
                                         MaxHeight="{TemplateBinding MaxDropDownHeight}">
                                     <Border.Effect>
-                                        <DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="0.5" Color="#000000"/>
+                                        <DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="{DynamicResource ShadowOpacity}" Color="#000000"/>
                                     </Border.Effect>
                                     <ScrollViewer CanContentScroll="True" VerticalScrollBarVisibility="Auto">
                                         <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>

@@ -18,4 +18,18 @@
     <SolidColorBrush x:Key="BadgeBrush" Color="#F4F4F5"/>
     <SolidColorBrush x:Key="BadgeFgBrush" Color="#111113"/>
     <sys:Double x:Key="ShadowOpacity">0.5</sys:Double>
+
+    <!-- Outlines and weights (Dark keeps panels borderless; the active tile gets a white ring) -->
+    <SolidColorBrush x:Key="OutlineBrush" Color="Transparent"/>
+    <Thickness x:Key="OutlineThickness">0</Thickness>
+    <Thickness x:Key="WindowBorderThickness">1</Thickness>
+    <SolidColorBrush x:Key="TileBorderBrush" Color="Transparent"/>
+    <Thickness x:Key="TileBorderThickness">1.5</Thickness>
+    <SolidColorBrush x:Key="ControlBorderBrush" Color="#26FFFFFF"/>
+    <Thickness x:Key="ControlBorderThickness">1</Thickness>
+    <sys:Double x:Key="DividerHeight">1</sys:Double>
+    <sys:Double x:Key="TrackHeight">4</sys:Double>
+    <sys:Double x:Key="ThumbSize">14</sys:Double>
+    <SolidColorBrush x:Key="ThumbFillBrush" Color="#1C1C1F"/>
+    <sys:Double x:Key="ThumbStrokeThickness">1.5</sys:Double>
 </ResourceDictionary>

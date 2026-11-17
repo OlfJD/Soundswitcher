@@ -1,44 +1,35 @@
 <div align="center">
 
-# 🔊 SoundSwitcher
+<img src="SoundSwitcher/Assets/app.png" width="88" alt="SoundSwitcher icon">
 
-**A Sleek, Lightweight Windows Audio Device Switcher & Floating Pill Widget**
+# SoundSwitcher
 
-[![Download Latest Release](https://img.shields.io/badge/Download-Latest_Release_(Windows)-8B5CF6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/OlfJD/Soundswitcher/releases/latest/download/SoundSwitcher-v1.1.0-win-x64.zip)
-[![GitHub Release](https://img.shields.io/github/v/release/OlfJD/Soundswitcher?style=for-the-badge&color=10B981)](https://github.com/OlfJD/Soundswitcher/releases/latest)
-[![Platform](https://img.shields.io/badge/Platform-Windows_10_%2F_11-3B82F6?style=for-the-badge&logo=windows)](https://github.com/OlfJD/Soundswitcher)
+Switch between your headphones and speakers from the Windows tray.
 
-### 📥 [👉 Click Here to Download SoundSwitcher (.zip)](https://github.com/OlfJD/Soundswitcher/releases/latest/download/SoundSwitcher-v1.1.0-win-x64.zip)
-*or download the standalone [**`SoundSwitcher.exe`**](https://github.com/OlfJD/Soundswitcher/releases/latest/download/SoundSwitcher.exe)*
+[**Download SoundSwitcher.exe**](https://github.com/OlfJD/Soundswitcher/releases/latest/download/SoundSwitcher.exe)
+
+<br>
+
+<img src="docs/screenshot.png" width="760" alt="SoundSwitcher in the Stormtrooper and Dark themes">
 
 </div>
 
----
+## How it works
 
-## ⚡ Quick Start for Users
+- **Click the tray icon** to open SoundSwitcher, then click a tile to make it your output.
+- **Gear icon** to pick the two devices, the theme (Stormtrooper or Dark), Start with Windows, and whether a tray click switches directly.
+- **Right-click the tray icon** to exit.
 
-1. **[Download SoundSwitcher (.zip)](https://github.com/OlfJD/Soundswitcher/releases/latest/download/SoundSwitcher-v1.1.0-win-x64.zip)** or the direct [**`SoundSwitcher.exe`**](https://github.com/OlfJD/Soundswitcher/releases/latest/download/SoundSwitcher.exe).
-2. Run **`SoundSwitcher.exe`**.
-3. Look for the 🔊 icon in your Windows system tray (bottom-right near the clock).
-4. Click the tray icon to open the floating toggle pill, or click **⚙ (Settings)** to assign your audio devices (e.g. Headphones & Speakers)!
+It follows Windows when devices are plugged in or changed, and uses under 10 MB of memory while idle.
 
----
+## Requirements
 
-## ✨ Features
+Windows 10 or 11 with the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) (x64).
 
-- **Ultra-Low Memory Footprint (< 10 MB RAM)**: Idles in the system tray at **below 10 MB of RAM** and 0% CPU. Features an active memory reclamation engine that automatically compacts and releases working set memory back to the OS the moment the flyout is minimized or closed with **✕**.
-- **System Tray Background App**: Sits discreetly in the Windows taskbar notification area.
-- **Minimalist Floating Pill Widget & Quick Toggle**:
-  - **Always on Top**: Pinned above other windows (`HWND_TOPMOST`).
-  - **Stays Open Until Closed**: Won't disappear unexpectedly; stays open until you click **✕** or toggle the tray icon.
-  - **Draggable Floating Widget**: Click and drag anywhere on the pill to place it anywhere on your screens.
-  - **Device Tiles**: Your two devices side by side; click one to make it the output.
-  - **Two Themes**: Monochrome *Dark* and black-and-white *Stormtrooper*, switchable in Settings.
-  - **Crisp Vector Icons & Inter Typeface**: Lucide icons and a bundled Inter font for high-DPI clarity.
-- **Integrated Settings & Device Chooser**:
-  - Click the **⚙ (Settings)** button next to the toggle to expand preferences.
-  - **Choose Audio Devices**: Select which device sits on the left and right tile.
-  - **Master Volume & Mute**: Slider with live percentage feedback and vector mute states.
-  - **Start with Windows**: Toggleable system boot launch.
-  - **Direct Tray Toggle**: Optional instant audio flip on tray click without opening flyout.
-- **Automatic System Sync**: Synchronizes in real-time with Windows CoreAudio events (`IMMNotificationClient`) when devices are plugged, unplugged, or changed.
+## Building
+
+```bash
+dotnet publish SoundSwitcher/SoundSwitcher.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true
+```
+
+The app icon comes from `generate_icon.ps1`. Development notes are in [DEVLOG.md](DEVLOG.md).

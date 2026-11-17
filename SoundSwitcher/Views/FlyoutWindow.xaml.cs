@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -38,10 +39,8 @@ public partial class FlyoutWindow : Window
     private const string SpeakerMutedPath = "M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z M22 9l-6 6 M16 9l6 6";
     private static readonly Geometry SpeakerOnGeometry = Freeze(Geometry.Parse(SpeakerOnPath));
     private static readonly Geometry SpeakerMutedGeometry = Freeze(Geometry.Parse(SpeakerMutedPath));
-    private static readonly SolidColorBrush MutedBrush = Freeze(new SolidColorBrush(Color.FromRgb(239, 68, 68)));
-    private static readonly SolidColorBrush UnmutedBrush = Freeze(new SolidColorBrush(Color.FromRgb(226, 232, 240)));
-    private static readonly SolidColorBrush SettingsActiveBrush = Freeze(new SolidColorBrush(Color.FromRgb(167, 139, 250))); // #A78BFA Pastel Lavender
-    private static readonly SolidColorBrush SettingsIdleBrush = Freeze(new SolidColorBrush(Color.FromRgb(156, 163, 175)));
+    private static readonly Regex NameWithAdapter = new(@"^(.*?)\s*\((.+)\)\s*$", RegexOptions.Compiled);
+    private static readonly Regex HeadphoneWords = new(@"head(phone|set)|kopfh|casque|auricular|cuffie|earbud|airpods|buds", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static T Freeze<T>(T freezable) where T : Freezable
     {
@@ -87,8 +86,13 @@ public partial class FlyoutWindow : Window
         WindowBlurHelper.ApplyModernWindowStyles(this);
         EnsureTopmost();
 
+        _isUpdatingUi = true;
         StartupCheckBox.IsChecked = _settingsManager.Settings.LaunchOnStartup;
         DirectTrayToggleCheckBox.IsChecked = _settingsManager.Settings.DirectToggleOnTrayClick;
+        bool storm = ThemeManager.Normalize(_settingsManager.Settings.Theme) == ThemeManager.Stormtrooper;
+        ThemeStormtrooperRadio.IsChecked = storm;
+        ThemeDarkRadio.IsChecked = !storm;
+        _isUpdatingUi = false;
         RefreshUI();
     }
 
@@ -185,8 +189,6 @@ public partial class FlyoutWindow : Window
 
             if (_devices.Count > 0)
             {
-                MainToggleSwitch.IsEnabled = true;
-
                 string? favA = _settingsManager.Settings.FavoriteDeviceA_Id;
                 string? favB = _settingsManager.Settings.FavoriteDeviceB_Id;
 
@@ -222,35 +224,32 @@ public partial class FlyoutWindow : Window
                 DeviceBComboBox.ItemsSource = _devices;
                 DeviceBComboBox.SelectedItem = _deviceB;
 
-                // Update Toggle State: Checked = Device B, Unchecked = Device A
-                bool isDeviceBActive = currentDefault != null && currentDefault.Id == _deviceB.Id;
-                MainToggleSwitch.IsChecked = isDeviceBActive;
-
-                // Update tooltips & subtitles
-                string devAName = _deviceA.Name;
-                string devBName = _deviceB.Name;
-                MainToggleSwitch.ToolTip = $"Switch Audio Device:\n• 🔴 Red (Left): {devAName}\n• 🟢 Green (Right): {devBName}";
+                FillTile(_deviceA, TileAName, TileADetail, TileAIcon, TileA);
+                FillTile(_deviceB, TileBName, TileBDetail, TileBIcon, TileB);
+                TileA.IsEnabled = true;
+                TileB.IsEnabled = _devices.Count >= 2;
+                UpdateTileChecks(currentDefault?.Id);
             }
             else
             {
-                ActiveDeviceSubtitle.Text = "• No audio devices detected";
-                MainToggleSwitch.IsEnabled = false;
+                _deviceA = _deviceB = null;
+                TileAName.Text = "No audio devices";
+                TileADetail.Text = "";
+                TileBName.Text = "";
+                TileBDetail.Text = "";
+                TileA.IsEnabled = TileB.IsEnabled = false;
+                UpdateTileChecks(null);
             }
 
+            MuteBtn.IsEnabled = VolumeSlider.IsEnabled = currentDefault != null;
             if (currentDefault != null)
             {
-                ActiveDeviceSubtitle.Text = $"• {currentDefault.Name}";
                 VolumeSlider.Value = currentDefault.Volume;
-                VolumeText.Text = $"{(int)currentDefault.Volume}%";
-                
+                VolumeText.Text = $"{(int)currentDefault.Volume}";
+
                 MuteVectorPath.Data = currentDefault.IsMuted ? SpeakerMutedGeometry : SpeakerOnGeometry;
-                MuteVectorPath.Stroke = currentDefault.IsMuted ? MutedBrush : UnmutedBrush;
-                MuteVectorPath.Fill = currentDefault.IsMuted ? MutedBrush : UnmutedBrush;
-                MuteBtn.Opacity = currentDefault.IsMuted ? 0.75 : 1.0;
-            }
-            else
-            {
-                ActiveDeviceSubtitle.Text = "• No Active Device";
+                MuteBtn.ToolTip = currentDefault.IsMuted ? "Unmute" : "Mute";
+                VolumeSlider.Opacity = currentDefault.IsMuted ? 0.4 : 1.0;
             }
         }
         finally
@@ -259,23 +258,45 @@ public partial class FlyoutWindow : Window
         }
     }
 
-    private void MainToggleSwitch_Click(object sender, RoutedEventArgs e)
+    private void FillTile(AudioDevice device, TextBlock name, TextBlock detail, System.Windows.Shapes.Path icon, FrameworkElement tile)
     {
-        if (_isUpdatingUi) return;
+        // Endpoint names look like "Speakers (Realtek Audio)": show the role large and the adapter small
+        var match = NameWithAdapter.Match(device.Name);
+        name.Text = match.Success ? match.Groups[1].Value : device.Name;
+        detail.Text = match.Success ? match.Groups[2].Value : "";
+        tile.ToolTip = device.Name;
 
-        bool isChecked = MainToggleSwitch.IsChecked == true;
-        if (isChecked && _deviceB != null)
+        // Many USB headsets report the "Speakers" form factor, so the endpoint name decides too
+        bool looksLikeHeadphones = HeadphoneWords.IsMatch(device.Name);
+        string iconKey = device.FormFactor switch
         {
-            _audioController.SetDefaultPlaybackDevice(_deviceB.Id);
-        }
-        else if (!isChecked && _deviceA != null)
+            DeviceFormFactor.Headphones or DeviceFormFactor.Headset => "IconHeadphones",
+            DeviceFormFactor.DigitalAudioDisplayDevice => "IconMonitor",
+            _ when looksLikeHeadphones => "IconHeadphones",
+            _ => "IconSpeaker"
+        };
+        icon.Data = (Geometry)FindResource(iconKey);
+    }
+
+    private void UpdateTileChecks(string? activeId)
+    {
+        TileA.IsChecked = activeId != null && _deviceA != null && _deviceA.Id == activeId;
+        TileB.IsChecked = activeId != null && _deviceB != null && _deviceB.Id == activeId && _deviceB.Id != _deviceA?.Id;
+    }
+
+    private void Tile_Click(object sender, RoutedEventArgs e)
+    {
+        var target = sender == TileA ? _deviceA : _deviceB;
+
+        // A ToggleButton flips itself on click; the tiles reflect the default device instead
+        if (target == null || target.Id == _currentDefault?.Id)
         {
-            _audioController.SetDefaultPlaybackDevice(_deviceA.Id);
+            UpdateTileChecks(_currentDefault?.Id);
+            return;
         }
-        else
-        {
-            _audioController.ToggleBetween(_deviceA?.Id, _deviceB?.Id);
-        }
+
+        UpdateTileChecks(target.Id);
+        _audioController.SetDefaultPlaybackDevice(target.Id);
     }
 
     private void DeviceAComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -310,7 +331,8 @@ public partial class FlyoutWindow : Window
     {
         bool isOpening = SettingsPanel.Visibility != Visibility.Visible;
         SettingsPanel.Visibility = isOpening ? Visibility.Visible : Visibility.Collapsed;
-        SettingsVectorPath.Stroke = isOpening ? SettingsActiveBrush : SettingsIdleBrush;
+        SettingsBtn.ClearValue(ForegroundProperty);
+        if (isOpening) SettingsBtn.SetResourceReference(ForegroundProperty, "FgBrush");
 
         // Re-anchor window position so expanding or collapsing keeps bottom docked above taskbar
         UpdatePosition();
@@ -329,7 +351,7 @@ public partial class FlyoutWindow : Window
     {
         if (_isUpdatingUi) return;
 
-        VolumeText.Text = $"{(int)e.NewValue}%";
+        VolumeText.Text = $"{(int)e.NewValue}";
         // Use the device cached by RefreshUI: re-enumerating every device on each drag step is expensive
         if (_currentDefault != null)
         {
@@ -360,6 +382,17 @@ public partial class FlyoutWindow : Window
         if (_isUpdatingUi) return;
         _settingsManager.Settings.DirectToggleOnTrayClick = DirectTrayToggleCheckBox.IsChecked == true;
         _settingsManager.Save();
+    }
+
+    private void ThemeRadio_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_isUpdatingUi) return;
+        string theme = sender == ThemeStormtrooperRadio ? ThemeManager.Stormtrooper : ThemeManager.Dark;
+        if (theme == _settingsManager.Settings.Theme) return;
+
+        _settingsManager.Settings.Theme = theme;
+        _settingsManager.Save();
+        ThemeManager.Apply(theme);
     }
 
     private void OpenWindowsSoundSettings_Click(object sender, RoutedEventArgs e)

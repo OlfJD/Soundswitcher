@@ -12,6 +12,7 @@ public class AppSettings
     public bool LaunchOnStartup { get; set; } = false;
     public bool DirectToggleOnTrayClick { get; set; } = false;
     public bool PlayAudioCueOnSwitch { get; set; } = false;
+    public string Theme { get; set; } = ThemeManager.Dark;
 }
 
 public class SettingsManager

@@ -96,6 +96,7 @@ public partial class App : System.Windows.Application
             _audioController = new AudioController();
             _settingsManager = new SettingsManager();
             _settingsManager.SyncStartupRegistration();
+            ThemeManager.Apply(_settingsManager.Settings.Theme);
 
             _flyoutWindow = new FlyoutWindow(_audioController, _settingsManager);
             MainWindow = _flyoutWindow;

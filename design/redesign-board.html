@@ -1,0 +1,448 @@
+<title>SoundSwitcher Redesign Board</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Geist:wght@400;500;600&display=swap">
+<style>
+  /* Layout: sticky control bar, then a wrapping grid of direction cards; each card shows the flyout closed and open on a desktop-like stage. */
+  :root {
+    --bg: #f4f4f6; --surface: #ffffff; --fg: #17171b; --muted: #62626c; --line: #dcdce2; --accent: #3a46c9;
+    --ui: "Inter", "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #101013; --surface: #18181c; --fg: #ececf0; --muted: #9a9aa6; --line: #2b2b32; --accent: #9ea6ff; color-scheme: dark } }
+  :root[data-theme="dark"] { --bg: #101013; --surface: #18181c; --fg: #ececf0; --muted: #9a9aa6; --line: #2b2b32; --accent: #9ea6ff; color-scheme: dark }
+
+  body { background: var(--bg); color: var(--fg); font-family: var(--ui); font-size: 15px; line-height: 1.5;
+         padding-block: 28px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+  .wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+  h1 { font-size: 26px; font-weight: 600; letter-spacing: -.01em; margin: 0 0 6px; text-wrap: balance; }
+  p { margin: 0; color: var(--muted); max-width: 70ch; }
+  code { font-size: .92em; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; color: var(--fg); }
+
+  .bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 10px; border-bottom: 1px solid var(--line);
+         display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; }
+  .ctl { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .ctl > span { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-right: 2px; }
+  .ctl button { font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 6px; padding: 4px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .ctl button[aria-pressed="true"] { border-color: var(--fg); box-shadow: inset 0 0 0 1px var(--fg); }
+  .ctl button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .ctl .sw { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--line); }
+  .note { font-size: 13px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 350px), 1fr)); gap: 18px; }
+  .opt { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .tag { display: flex; align-items: baseline; gap: 8px; font-weight: 600; flex-wrap: wrap; }
+  .tag b { color: var(--accent); font-size: 19px; }
+  .now { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 0 5px; font-weight: 500; }
+  .opt > p { font-size: 13.5px; }
+
+  /* ---------- Mock surfaces: imitate the app, so they use their own tokens, driven by the control bar ---------- */
+  .mocks { --m-font: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+           --m-stage: #0c0c0e; --m-bg: #1c1c1f; --m-raise: #26262a; --m-fg: #f4f4f5; --m-mut: #8f8f98;
+           --m-line: rgba(255,255,255,.07); --m-line2: rgba(255,255,255,.15);
+           --m-shadow: 0 14px 34px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.07);
+           --m-acc: #f4f4f5; --m-on: #111113; }
+  .mocks[data-mt="light"] { --m-stage: #dfe0e5; --m-bg: #ffffff; --m-raise: #f2f2f4; --m-fg: #111113; --m-mut: #6c6c75;
+           --m-line: rgba(0,0,0,.07); --m-line2: rgba(0,0,0,.14);
+           --m-shadow: 0 14px 34px rgba(0,0,0,.13), 0 0 0 1px rgba(0,0,0,.07); }
+
+  .stage { background: var(--m-stage); border-radius: 8px; padding: 18px 14px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .lbl { align-self: stretch; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--m-mut); padding-left: 2px; }
+  .lbl + * { margin-bottom: 10px; }
+  .stack { width: 100%; max-width: 320px; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+
+  .m { font-family: var(--m-font); color: var(--m-fg); background: var(--m-bg); box-shadow: var(--m-shadow);
+       width: 100%; max-width: 320px; font-size: 13px; line-height: 1.35; box-sizing: border-box; }
+  .m button { font: inherit; color: inherit; }
+  .i { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; display: block; }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .grow { flex: 1; min-width: 0; }
+  .mut { color: var(--m-mut); }
+  .ell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ib { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; color: var(--m-mut); border: 0; background: transparent; cursor: pointer; flex: none; padding: 0; }
+  .ib:hover { background: var(--m-raise); color: var(--m-fg); }
+  .tg { width: 36px; height: 20px; border-radius: 10px; border: 1px solid var(--m-line2); background: transparent; position: relative; flex: none; cursor: pointer; padding: 0; transition: background .15s; }
+  .tg::after { content: ""; position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; border-radius: 50%; background: var(--m-mut); transition: left .15s, background .15s; }
+  .tg.on { background: var(--m-acc); border-color: var(--m-acc); }
+  .tg.on::after { left: 19px; background: var(--m-on); }
+  .sl { flex: 1; height: 4px; border-radius: 2px; background: var(--m-line2); position: relative; }
+  .sl i { position: absolute; inset: 0 36% 0 0; background: var(--m-acc); border-radius: 2px; }
+  .sl i::after { content: ""; position: absolute; right: -7px; top: -5px; width: 14px; height: 14px; border-radius: 50%; background: var(--m-bg); box-shadow: 0 0 0 1.5px var(--m-acc), 0 1px 3px rgba(0,0,0,.3); }
+  .num { font-variant-numeric: tabular-nums; }
+  .m button:focus-visible { outline: 2px solid var(--m-acc); outline-offset: 2px; }
+
+  /* A — current UI, fixed colours */
+  .m.a { font-family: "Segoe UI", system-ui, sans-serif; background: #12141B; border: 1px solid #252D3E; border-radius: 18px; padding: 10px 15px; color: #E2E8F0; box-shadow: 0 3px 16px rgba(0,0,0,.55); }
+  .a .ttl { font-family: Georgia, Cambria, "Times New Roman", serif; font-size: 17.5px; color: #F3F4F6; }
+  .a .subt { font-size: 10.5px; color: #6B7280; }
+  .a .hero { width: 46px; height: 24px; border-radius: 12px; background: #F87171; border: 0; position: relative; cursor: pointer; box-shadow: 0 1px 6px rgba(248,113,113,.3); padding: 0; }
+  .a .hero::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left .15s; }
+  .a .hero.on { background: #34D399; box-shadow: 0 1px 6px rgba(52,211,153,.3); }
+  .a .hero.on::after { left: 25px; }
+  .a .box { background: #171A24; border: 1px solid #252D3E; border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
+  .a .cap { font-size: 10px; font-weight: 700; color: #64748B; margin-bottom: 8px; }
+  .a .fake { background: #181B26; border: 1px solid #2A3347; border-radius: 8px; padding: 5px 8px; font-size: 11px; margin: 4px 0 10px; }
+  .a .ib { color: #9CA3AF; } .a .ib:hover { background: #1c2130; }
+  .a .tiny { font-size: 11.5px; }
+  .a .tgA { width: 34px; height: 18px; border-radius: 9px; background: #2C3446; flex: none; position: relative; }
+  .a .tgA::after { content: ""; position: absolute; top: 2px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #94A3B8; }
+  .a .slA { flex: 1; height: 6px; border-radius: 3px; background: #2C3446; position: relative; }
+  .a .slA i { position: absolute; inset: 0 36% 0 0; background: #8B5CF6; border-radius: 3px; }
+
+  /* B — Windows 11 native */
+  .m.b { border-radius: 10px; padding: 6px; }
+  .b .bx { width: 34px; height: 34px; border-radius: 8px; background: var(--m-raise); display: grid; place-items: center; flex: none; }
+  .b .t { font-size: 14px; font-weight: 600; }
+  .b .s { font-size: 12px; color: var(--m-mut); }
+  .b .main { padding: 6px 4px 6px 6px; }
+  .b .h { font-size: 12px; font-weight: 600; color: var(--m-mut); padding: 8px 10px 4px; }
+  .b .li { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 6px; position: relative; cursor: pointer; border: 0; background: transparent; width: 100%; text-align: left; }
+  .b .li:hover { background: var(--m-raise); }
+  .b .li.act { background: var(--m-raise); }
+  .b .li.act::before { content: ""; position: absolute; left: 0; top: 11px; bottom: 11px; width: 3px; border-radius: 2px; background: var(--m-acc); }
+  .b .pad { padding: 8px 10px; }
+  .b .hr { height: 1px; background: var(--m-line); margin: 6px 4px; }
+  .b .foot { padding: 6px 10px 8px; font-size: 12px; display: flex; justify-content: space-between; }
+
+  /* C — Segmented */
+  .m.c { border-radius: 999px; padding: 4px; display: flex; gap: 4px; align-items: center; }
+  .c .seg { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 7px; height: 34px; border-radius: 999px; color: var(--m-mut); font-weight: 500; border: 0; background: transparent; cursor: pointer; padding: 0 10px; transition: background .15s, color .15s; }
+  .c .seg.act { background: var(--m-acc); color: var(--m-on); }
+  .m.c.panel { border-radius: 20px; padding: 12px; display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+  .c .vbig { height: 34px; border-radius: 17px; background: var(--m-raise); position: relative; overflow: hidden; display: flex; align-items: center; padding: 0 12px; justify-content: space-between; margin-bottom: 4px; }
+  .c .vbig b { position: absolute; inset: 0 36% 0 0; background: color-mix(in srgb, var(--m-acc) 22%, var(--m-raise)); }
+  .c .vbig > * { position: relative; }
+  .c .kv { display: flex; justify-content: space-between; align-items: center; padding: 6px 4px; gap: 10px; }
+  .c .pick { display: inline-flex; gap: 6px; align-items: center; background: var(--m-raise); border-radius: 999px; padding: 4px 9px 4px 8px; font-size: 12.5px; }
+  .c .pick .i { width: 13px; height: 13px; }
+  .c .foot { display: flex; justify-content: space-between; padding: 6px 4px 2px; font-size: 12px; border-top: 1px solid var(--m-line); margin-top: 4px; }
+
+  /* D — Type only */
+  .m.d { border-radius: 14px; padding: 14px 16px; }
+  .d .cap { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--m-mut); }
+  .d .big { font-size: 22px; font-weight: 600; letter-spacing: -.02em; line-height: 1.15; }
+  .d .swap { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--m-line2); border-radius: 999px; padding: 6px 11px; background: transparent; cursor: pointer; font-size: 12.5px; flex: none; }
+  .d .swap:hover { border-color: var(--m-acc); }
+  .d .swap .i { width: 14px; height: 14px; }
+  .d .ln { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--m-line); }
+  .d .ln .sl { max-width: 150px; }
+  .d .foot { display: flex; justify-content: space-between; padding: 10px 0 14px; font-size: 12px; margin-bottom: 4px; border-bottom: 1px solid var(--m-line); }
+
+  /* E — Tiles */
+  .m.e { border-radius: 16px; padding: 10px; }
+  .e .hd { padding: 2px 2px 8px 6px; }
+  .e .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .e .tile { border-radius: 12px; background: var(--m-raise); padding: 12px; display: flex; flex-direction: column; gap: 14px; position: relative; border: 1.5px solid transparent; cursor: pointer; text-align: left; min-width: 0; }
+  .e .tile .i { width: 22px; height: 22px; }
+  .e .tile.act { border-color: var(--m-acc); background: color-mix(in srgb, var(--m-acc) 10%, var(--m-raise)); }
+  .e .ck { position: absolute; top: 10px; right: 10px; width: 18px; height: 18px; border-radius: 50%; background: var(--m-acc); color: var(--m-on); display: none; place-items: center; }
+  .e .ck .i { width: 11px; height: 11px; stroke-width: 3; }
+  .e .tile.act .ck { display: grid; }
+  .e .tile .nm2 { font-weight: 600; }
+  .e .tile .md { font-size: 11.5px; color: var(--m-mut); }
+  .e .vol { padding: 12px 6px 4px; }
+  .e .grp { background: var(--m-raise); border-radius: 12px; padding: 0 12px; margin-bottom: 8px; }
+  .e .grp .kv { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--m-line); gap: 10px; }
+  .e .grp .kv:last-child { border-bottom: 0; }
+
+  /* F — Mini pill */
+  .m.f { border-radius: 999px; padding: 5px 6px 5px 5px; max-width: 250px; display: flex; gap: 10px; align-items: center; }
+  .f .dot { width: 30px; height: 30px; border-radius: 50%; background: var(--m-acc); color: var(--m-on); display: grid; place-items: center; flex: none; }
+  .f .dot .i { width: 15px; height: 15px; }
+  .m.f.card { border-radius: 16px; padding: 8px; max-width: 290px; display: block; }
+  .f .dv { display: flex; gap: 10px; align-items: center; padding: 8px; border-radius: 8px; border: 0; background: transparent; width: 100%; text-align: left; cursor: default; }
+  .f .dv.act { background: var(--m-raise); }
+  .f .dv .ckm { visibility: hidden; color: var(--m-fg); }
+  .f .dv.act .ckm { visibility: visible; }
+  .f .bd { font-size: 10.5px; border: 1px solid var(--m-line2); border-radius: 5px; padding: 0 5px; color: var(--m-mut); }
+  .f .sec { font-size: 11px; color: var(--m-mut); padding: 8px 8px 4px; }
+  .f .kv { display: flex; justify-content: space-between; align-items: center; padding: 7px 8px; gap: 10px; }
+  .f .hr { height: 1px; background: var(--m-line); margin: 4px 8px; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="hp" viewBox="0 0 24 24"><path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"/></symbol>
+  <symbol id="spk" viewBox="0 0 24 24"><rect width="16" height="20" x="4" y="2" rx="2"/><path d="M12 6h.01"/><circle cx="12" cy="14" r="4"/><path d="M12 14h.01"/></symbol>
+  <symbol id="mon" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+  <symbol id="vol" viewBox="0 0 24 24"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 18.364a9 9 0 0 0 0-12.728"/></symbol>
+  <symbol id="gear" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="dots" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+  <symbol id="swap" viewBox="0 0 24 24"><path d="m16 3 4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16"/></symbol>
+  <symbol id="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="chevu" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></symbol>
+  <symbol id="chevr" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+</svg>
+
+<div class="wrap">
+  <header>
+    <h1>SoundSwitcher redesign</h1>
+    <p>Six directions for the flyout, each shown closed and opened. Click the toggles in the mocks to switch device. Reply with a letter plus the bar settings, for example <code>C · Segoe · Mono · Dark</code>, and add any tweaks.</p>
+  </header>
+
+  <div class="bar" id="bar">
+    <div class="ctl" data-k="theme"><span>Theme</span>
+      <button type="button" id="t-dark" data-v="dark" aria-pressed="true">Dark</button>
+      <button type="button" id="t-light" data-v="light" aria-pressed="false">Light</button>
+    </div>
+    <div class="ctl" data-k="acc"><span>Accent</span>
+      <button type="button" id="a-mono" data-v="mono" aria-pressed="true"><i class="sw" style="background:linear-gradient(90deg,#111 50%,#f4f4f5 50%)"></i>Mono</button>
+      <button type="button" id="a-blue" data-v="blue" aria-pressed="false"><i class="sw" style="background:#3b82f6"></i>Blue</button>
+      <button type="button" id="a-violet" data-v="violet" aria-pressed="false"><i class="sw" style="background:#8b5cf6"></i>Violet</button>
+      <button type="button" id="a-mint" data-v="mint" aria-pressed="false"><i class="sw" style="background:#2fbf8a"></i>Mint</button>
+      <button type="button" id="a-coral" data-v="coral" aria-pressed="false"><i class="sw" style="background:#f2664f"></i>Coral</button>
+    </div>
+    <div class="ctl" data-k="font"><span>Font</span>
+      <button type="button" id="f-segoe" data-v="segoe" aria-pressed="true">Segoe</button>
+      <button type="button" id="f-inter" data-v="inter" aria-pressed="false">Inter</button>
+      <button type="button" id="f-geist" data-v="geist" aria-pressed="false">Geist</button>
+    </div>
+    <p class="note">Segoe UI Variable is built into Windows 11. Inter and Geist would be bundled into the exe (a few hundred KB). Theme can also follow the Windows setting automatically.</p>
+  </div>
+
+  <div class="grid mocks" id="mocks" data-mt="dark">
+
+    <!-- A: current -->
+    <div class="opt" data-on="0">
+      <div class="tag"><b>A</b>Current <span class="now">now</span></div>
+      <div class="stage">
+        <div class="lbl">Closed</div>
+        <div class="m a"><div class="row">
+          <div class="grow"><div class="ttl">Soundswitcher</div><div class="subt ell"><span class="nm">Headphones</span> (<span class="sub">WH-1000XM5</span>)</div></div>
+          <button type="button" class="hero" data-swap aria-label="Switch device"></button>
+          <button type="button" class="ib" aria-label="Settings"><svg class="i" style="width:17px;height:17px"><use href="#gear"/></svg></button>
+          <button type="button" class="ib" aria-label="Close" style="width:24px"><svg class="i" style="width:12px;height:12px"><use href="#x"/></svg></button>
+        </div></div>
+        <div class="lbl">Open</div>
+        <div class="m a">
+          <div class="row tiny" style="justify-content:space-between;margin:2px 2px 8px"><span style="color:#C4B5FD">Windows Sound Settings</span><span style="color:#EF4444">Quit SoundSwitcher</span></div>
+          <div class="box"><div class="cap">OPTIONS</div>
+            <div class="row tiny" style="margin-bottom:8px"><span class="tgA"></span>Start with Windows</div>
+            <div class="row tiny"><span class="tgA"></span>Direct toggle on tray icon click</div></div>
+          <div class="box row"><svg class="i" style="width:15px"><use href="#vol"/></svg><span class="slA"><i></i></span><span class="tiny num" style="color:#94A3B8;font-weight:600">64%</span></div>
+          <div class="box"><div class="cap">TOGGLE AUDIO DEVICES</div>
+            <div class="tiny" style="color:#FCA5A5;font-weight:600"><span style="color:#F87171">●</span> Device 1 (Toggle Left / Red):</div><div class="fake">Headphones (WH-1000XM5)</div>
+            <div class="tiny" style="color:#86EFAC;font-weight:600"><span style="color:#34D399">●</span> Device 2 (Toggle Right / Green):</div><div class="fake" style="margin-bottom:2px">Speakers (Realtek Audio)</div></div>
+          <div style="height:1px;background:#202737;margin:0 0 10px"></div>
+          <div class="row"><div class="grow"><div class="ttl">Soundswitcher</div><div class="subt ell"><span class="nm">Headphones</span> (<span class="sub">WH-1000XM5</span>)</div></div>
+            <button type="button" class="hero" data-swap aria-label="Switch device"></button>
+            <button type="button" class="ib" aria-label="Settings"><svg class="i" style="width:17px;height:17px"><use href="#gear"/></svg></button></div>
+        </div>
+      </div>
+      <p>For reference. Serif title, red and green toggle, every section boxed.</p>
+    </div>
+
+    <!-- B: Windows 11 native -->
+    <div class="opt" data-on="0">
+      <div class="tag"><b>B</b>Windows 11 native</div>
+      <div class="stage">
+        <div class="lbl">Closed</div>
+        <div class="m b"><div class="row main">
+          <span class="bx"><svg class="i"><use class="cur-ic" href="#hp"/></svg></span>
+          <div class="grow"><div class="t ell nm">Headphones</div><div class="s ell sub">WH-1000XM5</div></div>
+          <button type="button" class="tg" data-swap aria-label="Switch device"></button>
+          <button type="button" class="ib" aria-label="More"><svg class="i"><use href="#dots"/></svg></button>
+        </div></div>
+        <div class="lbl">Open</div>
+        <div class="m b">
+          <div class="h">Switch between</div>
+          <button type="button" class="li" data-dev="0"><svg class="i"><use href="#hp"/></svg><div class="grow"><div>Headphones</div><div class="s">WH-1000XM5</div></div><svg class="i mut"><use href="#chev"/></svg></button>
+          <button type="button" class="li" data-dev="1"><svg class="i"><use href="#spk"/></svg><div class="grow"><div>Speakers</div><div class="s">Realtek Audio</div></div><svg class="i mut"><use href="#chev"/></svg></button>
+          <div class="row pad"><svg class="i"><use href="#vol"/></svg><span class="sl"><i></i></span><span class="num mut" style="width:22px;text-align:right">64</span></div>
+          <div class="hr"></div>
+          <div class="row pad"><span class="grow">Start with Windows</span><button type="button" class="tg on" aria-label="Start with Windows"></button></div>
+          <div class="row pad"><span class="grow">Tray click switches device</span><button type="button" class="tg" aria-label="Tray click switches device"></button></div>
+          <div class="foot"><span>Sound settings</span><span class="mut">Quit</span></div>
+          <div class="hr"></div>
+          <div class="row main">
+            <span class="bx"><svg class="i"><use class="cur-ic" href="#hp"/></svg></span>
+            <div class="grow"><div class="t ell nm">Headphones</div><div class="s ell sub">WH-1000XM5</div></div>
+            <button type="button" class="tg" data-swap aria-label="Switch device"></button>
+            <button type="button" class="ib" aria-label="Less"><svg class="i"><use href="#dots"/></svg></button>
+          </div>
+        </div>
+      </div>
+      <p>Looks like the built-in quick settings. Familiar and calm, least distinctive.</p>
+    </div>
+
+    <!-- C: Segmented -->
+    <div class="opt" data-on="0">
+      <div class="tag"><b>C</b>Segmented pill</div>
+      <div class="stage">
+        <div class="lbl">Closed</div>
+        <div class="m c">
+          <button type="button" class="seg" data-dev="0"><svg class="i"><use href="#hp"/></svg><span class="ell">Headphones</span></button>
+          <button type="button" class="seg" data-dev="1"><svg class="i"><use href="#spk"/></svg><span class="ell">Speakers</span></button>
+          <button type="button" class="ib" aria-label="Settings"><svg class="i"><use href="#chevu"/></svg></button>
+        </div>
+        <div class="lbl">Open</div>
+        <div class="stack">
+          <div class="m c panel">
+            <div class="vbig"><b></b><svg class="i"><use href="#vol"/></svg><span class="num">64</span></div>
+            <div class="kv"><span class="mut">Left</span><span class="pick"><svg class="i"><use href="#hp"/></svg>Headphones<svg class="i mut"><use href="#chev"/></svg></span></div>
+            <div class="kv"><span class="mut">Right</span><span class="pick"><svg class="i"><use href="#spk"/></svg>Speakers<svg class="i mut"><use href="#chev"/></svg></span></div>
+            <div class="kv"><span>Start with Windows</span><button type="button" class="tg on" aria-label="Start with Windows"></button></div>
+            <div class="kv"><span>Tray click switches</span><button type="button" class="tg" aria-label="Tray click switches"></button></div>
+            <div class="foot"><span>Sound settings</span><span class="mut">Quit</span></div>
+          </div>
+          <div class="m c">
+            <button type="button" class="seg" data-dev="0"><svg class="i"><use href="#hp"/></svg><span class="ell">Headphones</span></button>
+            <button type="button" class="seg" data-dev="1"><svg class="i"><use href="#spk"/></svg><span class="ell">Speakers</span></button>
+            <button type="button" class="ib" aria-label="Close settings"><svg class="i"><use href="#chev"/></svg></button>
+          </div>
+        </div>
+      </div>
+      <p>Both devices always visible by name; one click picks one. Replaces the cryptic red/green switch.</p>
+    </div>
+
+    <!-- D: Type only -->
+    <div class="opt" data-on="0">
+      <div class="tag"><b>D</b>Type only</div>
+      <div class="stage">
+        <div class="lbl">Closed</div>
+        <div class="m d"><div class="row">
+          <div class="grow"><div class="cap">Playing on</div><div class="big ell nm">Headphones</div></div>
+          <button type="button" class="swap" data-swap><svg class="i"><use href="#swap"/></svg><span class="oth">Speakers</span></button>
+        </div></div>
+        <div class="lbl">Open</div>
+        <div class="m d">
+          <div class="ln"><span>Volume</span><span class="sl"><i></i></span><span class="num mut">64</span></div>
+          <div class="ln"><span class="mut">Device 1</span><span class="row" style="gap:4px">Headphones<svg class="i mut" style="width:14px"><use href="#chevr"/></svg></span></div>
+          <div class="ln"><span class="mut">Device 2</span><span class="row" style="gap:4px">Speakers<svg class="i mut" style="width:14px"><use href="#chevr"/></svg></span></div>
+          <div class="ln"><span>Start with Windows</span><button type="button" class="tg on" aria-label="Start with Windows"></button></div>
+          <div class="ln" style="border-bottom:0"><span>Tray click switches</span><button type="button" class="tg" aria-label="Tray click switches"></button></div>
+          <div class="foot"><span>Sound settings</span><span class="mut">Quit</span></div>
+          <div class="row">
+            <div class="grow"><div class="cap">Playing on</div><div class="big ell nm">Headphones</div></div>
+            <button type="button" class="swap" data-swap><svg class="i"><use href="#swap"/></svg><span class="oth">Speakers</span></button>
+          </div>
+        </div>
+      </div>
+      <p>No boxes, no icons in the content. Large device name, hairlines, one swap button.</p>
+    </div>
+
+    <!-- E: Tiles -->
+    <div class="opt" data-on="0">
+      <div class="tag"><b>E</b>Device tiles</div>
+      <div class="stage">
+        <div class="lbl">Closed</div>
+        <div class="m e">
+          <div class="row hd"><span class="grow mut" style="font-size:12px">Output</span><button type="button" class="ib" aria-label="Settings"><svg class="i"><use href="#gear"/></svg></button><button type="button" class="ib" aria-label="Close"><svg class="i"><use href="#x"/></svg></button></div>
+          <div class="tiles">
+            <button type="button" class="tile" data-dev="0"><svg class="i"><use href="#hp"/></svg><span class="ck"><svg class="i"><use href="#check"/></svg></span><span><span class="nm2">Headphones</span><br><span class="md">WH-1000XM5</span></span></button>
+            <button type="button" class="tile" data-dev="1"><svg class="i"><use href="#spk"/></svg><span class="ck"><svg class="i"><use href="#check"/></svg></span><span><span class="nm2">Speakers</span><br><span class="md">Realtek Audio</span></span></button>
+          </div>
+          <div class="row vol"><svg class="i mut"><use href="#vol"/></svg><span class="sl"><i></i></span><span class="num mut">64</span></div>
+        </div>
+        <div class="lbl">Open</div>
+        <div class="m e">
+          <div class="grp">
+            <div class="kv"><span class="mut">Tile 1</span><span>Headphones</span></div>
+            <div class="kv"><span class="mut">Tile 2</span><span>Speakers</span></div>
+          </div>
+          <div class="grp">
+            <div class="kv"><span>Start with Windows</span><button type="button" class="tg on" aria-label="Start with Windows"></button></div>
+            <div class="kv"><span>Tray click switches</span><button type="button" class="tg" aria-label="Tray click switches"></button></div>
+          </div>
+          <div class="row" style="justify-content:space-between;padding:2px 6px 10px;font-size:12px"><span>Sound settings</span><span class="mut">Quit</span></div>
+          <div class="tiles">
+            <button type="button" class="tile" data-dev="0"><svg class="i"><use href="#hp"/></svg><span class="ck"><svg class="i"><use href="#check"/></svg></span><span><span class="nm2">Headphones</span><br><span class="md">WH-1000XM5</span></span></button>
+            <button type="button" class="tile" data-dev="1"><svg class="i"><use href="#spk"/></svg><span class="ck"><svg class="i"><use href="#check"/></svg></span><span><span class="nm2">Speakers</span><br><span class="md">Realtek Audio</span></span></button>
+          </div>
+          <div class="row vol"><svg class="i mut"><use href="#vol"/></svg><span class="sl"><i></i></span><span class="num mut">64</span></div>
+        </div>
+      </div>
+      <p>Big tap targets with icons, like phone control centres. Taller than the others.</p>
+    </div>
+
+    <!-- F: Mini pill -->
+    <div class="opt" data-on="0">
+      <div class="tag"><b>F</b>Mini pill</div>
+      <div class="stage">
+        <div class="lbl">Closed</div>
+        <div class="m f">
+          <span class="dot"><svg class="i"><use class="cur-ic" href="#hp"/></svg></span>
+          <span class="grow ell" style="font-weight:600"><span class="nm">Headphones</span></span>
+          <button type="button" class="ib" data-swap aria-label="Switch device"><svg class="i"><use href="#swap"/></svg></button>
+          <button type="button" class="ib" aria-label="Open"><svg class="i"><use href="#chevu"/></svg></button>
+        </div>
+        <div class="lbl">Open</div>
+        <div class="stack">
+          <div class="m f card">
+            <div class="kv"><svg class="i mut"><use href="#vol"/></svg><span class="sl"><i></i></span><span class="num mut">64</span></div>
+            <div class="sec">Outputs</div>
+            <div class="dv" data-dev="0"><svg class="i"><use href="#hp"/></svg><span class="grow">Headphones</span><span class="bd">1</span><svg class="i ckm"><use href="#check"/></svg></div>
+            <div class="dv" data-dev="1"><svg class="i"><use href="#spk"/></svg><span class="grow">Speakers</span><span class="bd">2</span><svg class="i ckm"><use href="#check"/></svg></div>
+            <div class="dv"><svg class="i mut"><use href="#mon"/></svg><span class="grow mut">DELL U2723 (DisplayPort)</span><svg class="i ckm"><use href="#check"/></svg></div>
+            <div class="hr"></div>
+            <div class="kv"><span>Start with Windows</span><button type="button" class="tg on" aria-label="Start with Windows"></button></div>
+            <div class="kv"><span>Tray click switches</span><button type="button" class="tg" aria-label="Tray click switches"></button></div>
+            <div class="kv" style="font-size:12px"><span>Sound settings</span><span class="mut">Quit</span></div>
+          </div>
+          <div class="m f">
+            <span class="dot"><svg class="i"><use class="cur-ic" href="#hp"/></svg></span>
+            <span class="grow ell" style="font-weight:600"><span class="nm">Headphones</span></span>
+            <button type="button" class="ib" data-swap aria-label="Switch device"><svg class="i"><use href="#swap"/></svg></button>
+            <button type="button" class="ib" aria-label="Close"><svg class="i"><use href="#chev"/></svg></button>
+          </div>
+        </div>
+      </div>
+      <p>Smallest footprint on screen. Settings open as a separate card; badges 1 and 2 mark the toggle pair.</p>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  var DEV = [{ n: "Headphones", s: "WH-1000XM5", ic: "#hp" }, { n: "Speakers", s: "Realtek Audio", ic: "#spk" }];
+  function render(card) {
+    var on = card.dataset.on === "1", cur = DEV[on ? 1 : 0], oth = DEV[on ? 0 : 1];
+    card.querySelectorAll(".nm").forEach(function (e) { e.textContent = cur.n; });
+    card.querySelectorAll(".sub").forEach(function (e) { e.textContent = cur.s; });
+    card.querySelectorAll(".oth").forEach(function (e) { e.textContent = oth.n; });
+    card.querySelectorAll(".cur-ic").forEach(function (e) { e.setAttribute("href", cur.ic); });
+    card.querySelectorAll("[data-dev]").forEach(function (e) { e.classList.toggle("act", e.dataset.dev === (on ? "1" : "0")); });
+    card.querySelectorAll("[data-swap]").forEach(function (e) { e.classList.toggle("on", on); });
+  }
+  document.querySelectorAll(".opt").forEach(render);
+  document.getElementById("mocks").addEventListener("click", function (ev) {
+    var card = ev.target.closest(".opt"); if (!card) return;
+    var sw = ev.target.closest("[data-swap]"), dv = ev.target.closest("[data-dev]"), tg = ev.target.closest(".tg");
+    if (sw) { card.dataset.on = card.dataset.on === "1" ? "0" : "1"; render(card); }
+    else if (dv) { card.dataset.on = dv.dataset.dev; render(card); }
+    else if (tg) { tg.classList.toggle("on"); }
+  });
+
+  var ACC = {
+    mono:   { dark: ["#f4f4f5", "#111113"], light: ["#18181b", "#ffffff"] },
+    blue:   { dark: ["#4f8ff7", "#ffffff"], light: ["#2563eb", "#ffffff"] },
+    violet: { dark: ["#9472f7", "#ffffff"], light: ["#7c3aed", "#ffffff"] },
+    mint:   { dark: ["#34d399", "#04241a"], light: ["#059669", "#ffffff"] },
+    coral:  { dark: ["#ff7a66", "#2a0b05"], light: ["#e8553f", "#ffffff"] }
+  };
+  var FONT = {
+    segoe: '"Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif',
+    inter: '"Inter", "Segoe UI", system-ui, sans-serif',
+    geist: '"Geist", "Segoe UI", system-ui, sans-serif'
+  };
+  var state = { theme: "dark", acc: "mono", font: "segoe" };
+  var mocks = document.getElementById("mocks");
+  function apply() {
+    mocks.dataset.mt = state.theme;
+    var a = ACC[state.acc][state.theme];
+    mocks.style.setProperty("--m-acc", a[0]);
+    mocks.style.setProperty("--m-on", a[1]);
+    mocks.style.setProperty("--m-font", FONT[state.font]);
+  }
+  document.querySelectorAll(".ctl").forEach(function (g) {
+    g.addEventListener("click", function (ev) {
+      var b = ev.target.closest("button"); if (!b) return;
+      state[g.dataset.k] = b.dataset.v;
+      g.querySelectorAll("button").forEach(function (o) { o.setAttribute("aria-pressed", o === b ? "true" : "false"); });
+      apply();
+    });
+  });
+  apply();
+</script>

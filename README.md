@@ -4,11 +4,11 @@
 
 **A Sleek, Lightweight Windows Audio Device Switcher & Floating Pill Widget**
 
-[![Download Latest Release](https://img.shields.io/badge/Download-Latest_Release_(Windows)-8B5CF6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/OlfJD/Soundswitcher/releases/latest/download/SoundSwitcher-v1.0.0-win-x64.zip)
+[![Download Latest Release](https://img.shields.io/badge/Download-Latest_Release_(Windows)-8B5CF6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/OlfJD/Soundswitcher/releases/latest/download/SoundSwitcher-v1.1.0-win-x64.zip)
 [![GitHub Release](https://img.shields.io/github/v/release/OlfJD/Soundswitcher?style=for-the-badge&color=10B981)](https://github.com/OlfJD/Soundswitcher/releases/latest)
 [![Platform](https://img.shields.io/badge/Platform-Windows_10_%2F_11-3B82F6?style=for-the-badge&logo=windows)](https://github.com/OlfJD/Soundswitcher)
 
-### 📥 [👉 Click Here to Download SoundSwitcher (.zip)](https://github.com/OlfJD/Soundswitcher/releases/latest/download/SoundSwitcher-v1.0.0-win-x64.zip)
+### 📥 [👉 Click Here to Download SoundSwitcher (.zip)](https://github.com/OlfJD/Soundswitcher/releases/latest/download/SoundSwitcher-v1.1.0-win-x64.zip)
 *or download the standalone [**`SoundSwitcher.exe`**](https://github.com/OlfJD/Soundswitcher/releases/latest/download/SoundSwitcher.exe)*
 
 </div>
@@ -17,7 +17,7 @@
 
 ## ⚡ Quick Start for Users
 
-1. **[Download SoundSwitcher (.zip)](https://github.com/OlfJD/Soundswitcher/releases/latest/download/SoundSwitcher-v1.0.0-win-x64.zip)** or the direct [**`SoundSwitcher.exe`**](https://github.com/OlfJD/Soundswitcher/releases/latest/download/SoundSwitcher.exe).
+1. **[Download SoundSwitcher (.zip)](https://github.com/OlfJD/Soundswitcher/releases/latest/download/SoundSwitcher-v1.1.0-win-x64.zip)** or the direct [**`SoundSwitcher.exe`**](https://github.com/OlfJD/Soundswitcher/releases/latest/download/SoundSwitcher.exe).
 2. Run **`SoundSwitcher.exe`**.
 3. Look for the 🔊 icon in your Windows system tray (bottom-right near the clock).
 4. Click the tray icon to open the floating toggle pill, or click **⚙ (Settings)** to assign your audio devices (e.g. Headphones & Speakers)!
@@ -32,11 +32,12 @@
   - **Always on Top**: Pinned above other windows (`HWND_TOPMOST`).
   - **Stays Open Until Closed**: Won't disappear unexpectedly; stays open until you click **✕** or toggle the tray icon.
   - **Draggable Floating Widget**: Click and drag anywhere on the pill to place it anywhere on your screens.
-  - **Toggle Pill Switch**: Instant one-click flip between your two selected audio devices.
-  - **Crisp Vector Icon**: Powered by Lucide `volume-2` icon design for crisp high-DPI clarity.
+  - **Device Tiles**: Your two devices side by side; click one to make it the output.
+  - **Two Themes**: Monochrome *Dark* and black-and-white *Stormtrooper*, switchable in Settings.
+  - **Crisp Vector Icons & Inter Typeface**: Lucide icons and a bundled Inter font for high-DPI clarity.
 - **Integrated Settings & Device Chooser**:
   - Click the **⚙ (Settings)** button next to the toggle to expand preferences.
-  - **Choose Audio Devices for Toggle**: Select exactly which device corresponds to Toggle OFF (Device 1) and Toggle ON (Device 2).
+  - **Choose Audio Devices**: Select which device sits on the left and right tile.
   - **Master Volume & Mute**: Slider with live percentage feedback and vector mute states.
   - **Start with Windows**: Toggleable system boot launch.
   - **Direct Tray Toggle**: Optional instant audio flip on tray click without opening flyout.

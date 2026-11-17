@@ -28,7 +28,8 @@ SoundSwitcher is a high-performance, ultra-lightweight Windows desktop audio swi
      - Ensures all crash logging and file I/O use `AppDomain.CurrentDomain.BaseDirectory` or `%APPDATA%`, preventing silent write crashes during Windows boot when the operating system sets the working directory to `C:\Windows\System32`.
 
 4. **UI & Vector Visual System (`Views/` & `App.xaml`)**:
-   - `FlyoutWindow.xaml` / `.xaml.cs`: Draggable floating pill widget with `HWND_TOPMOST` layering, dynamic neon obsidian theme, custom Lucide vector audio icons, smooth device toggle switch, expandable settings panel, and master volume slider.
+   - `FlyoutWindow.xaml` / `.xaml.cs`: Draggable floating flyout with `HWND_TOPMOST` layering, monochrome dark theme, two device tiles (click one to make it the default output), Lucide vector icons, expandable settings panel, and master volume slider.
+   - Typeface: Inter (Regular/Medium/SemiBold static TTFs, SIL OFL) embedded as a WPF resource from `Fonts/`, with Segoe UI Variable as fallback.
    - `App.xaml` / `App.xaml.cs`: Application entry point managing Windows Notification Area (System Tray) icon (`NotifyIcon`), offscreen host window for keeping the WPF message pump alive in tray-only mode, single-instance mutex, and global hotkeys.
 
 ---
@@ -70,3 +71,11 @@ SoundSwitcher is a high-performance, ultra-lightweight Windows desktop audio swi
 - Mouse wheel over the volume slider adjusts volume in 2 % steps.
 - Mute/settings icon geometries and brushes are parsed once and frozen instead of re-created on every refresh.
 - `MemoryOptimizer` disposes the `Process` object it creates on each trim.
+
+### Version 1.1.0 - Minimal UI Redesign (2026-11-17)
+- Picked direction **E (device tiles), Mono accent, Dark, Inter** from the redesign board (`design/redesign-board.html`, which has the other directions in case they are revisited).
+- The red/green toggle is replaced by two device tiles showing role ("Speakers") and adapter ("Realtek Audio") separately; the active one has a white outline and check badge.
+- New palette (neutral greys, white as the only accent), thin volume slider, label-left switches, flat device pickers, footer text links.
+- Tile icons come from the endpoint form factor, with a name-based fallback because many USB headsets report "Speakers".
+- Inter is embedded (~1.2 MB in the exe); `Fonts/LICENSE.txt` carries the OFL.
+- **Themes**: colours moved to `Themes/Dark.xaml` and `Themes/Stormtrooper.xaml` (white shell, black details, the active tile inverts to solid black). `Core/ThemeManager.cs` swaps the merged dictionary at runtime; all themed colours use `DynamicResource`, so switching in Settings → Theme restyles the open flyout instantly. The choice is saved as `Theme` in `settings.json`.

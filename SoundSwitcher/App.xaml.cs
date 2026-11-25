@@ -8,8 +8,7 @@ namespace SoundSwitcher;
 
 public partial class App : System.Windows.Application
 {
-    private static Mutex? _mutex;
-    private static bool _ownsMutex;
+    private SingleInstance? _instance;
     private AudioController? _audioController;
     private SettingsManager? _settingsManager;
     private TrayManager? _trayManager;
@@ -35,45 +34,36 @@ public partial class App : System.Windows.Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        // Errors go to %APPDATA%\SoundSwitcher\errors.log (capped); no dialogs, so nothing can stack up
         AppDomain.CurrentDomain.UnhandledException += (s, args) =>
-        {
-            try
-            {
-                string crashPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log");
-                System.IO.File.AppendAllText(crashPath, $"[{DateTime.Now}] UNHANDLED: {args.ExceptionObject}\n");
-            }
-            catch { }
-        };
+            ErrorLog.Write("Unhandled exception", args.ExceptionObject);
 
         DispatcherUnhandledException += (s, args) =>
         {
-            try
-            {
-                string crashPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log");
-                System.IO.File.AppendAllText(crashPath, $"[{DateTime.Now}] DISPATCHER: {args.Exception}\n");
-            }
-            catch { }
+            ErrorLog.Write("Unhandled UI exception", args.Exception);
             args.Handled = true;
         };
 
-        const string mutexName = "SoundSwitcher_Unique_App_Mutex";
         try
         {
-            _mutex = new Mutex(true, mutexName, out bool isNewInstance);
-            _ownsMutex = isNewInstance;
-            if (!_ownsMutex)
+            _instance = new SingleInstance();
+            if (!_instance.IsFirstInstance)
             {
+                // Started again by the user: bring up the running copy. Started at sign-in: just quit.
+                if (!e.Args.Contains(SettingsManager.AutostartArgument, StringComparer.OrdinalIgnoreCase))
+                {
+                    _instance.RequestShow();
+                }
+                _instance.Dispose();
+                _instance = null;
                 Shutdown();
                 return;
             }
         }
-        catch (AbandonedMutexException)
+        catch (Exception ex)
         {
-            _ownsMutex = true;
-        }
-        catch
-        {
-            _ownsMutex = false;
+            // Without the claim, run anyway rather than not at all
+            ErrorLog.Write("Single-instance check failed", ex.Message);
         }
 
         base.OnStartup(e);
@@ -84,7 +74,6 @@ public partial class App : System.Windows.Application
         {
             _audioController = new AudioController();
             _settingsManager = new SettingsManager();
-            _settingsManager.SyncStartupRegistration();
             ThemeManager.Apply(_settingsManager.Settings.Theme);
 
             _flyoutWindow = new FlyoutWindow(_audioController, _settingsManager);
@@ -106,9 +95,23 @@ public partial class App : System.Windows.Application
             _flyoutWindow.Show();
             _flyoutWindow.Hide();
             Dispatcher.InvokeAsync(MemoryOptimizer.TrimWorkingSet, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+
+            // Another launch of the exe opens this copy's flyout
+            _instance?.ListenForShowRequests(() => Dispatcher.InvokeAsync(() =>
+            {
+                if (_flyoutWindow.IsVisible)
+                {
+                    _flyoutWindow.Activate();
+                }
+                else
+                {
+                    _flyoutWindow.ShowAtTaskbar();
+                }
+            }));
         }
         catch (Exception ex)
         {
+            ErrorLog.Write("Starting SoundSwitcher failed", ex);
             System.Windows.MessageBox.Show($"Failed to initialize SoundSwitcher: {ex.Message}", "SoundSwitcher Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             Shutdown();
         }
@@ -118,16 +121,8 @@ public partial class App : System.Windows.Application
     {
         _trayManager?.Dispose();
         _audioController?.Dispose();
-        try
-        {
-            if (_ownsMutex && _mutex != null)
-            {
-                _mutex.ReleaseMutex();
-            }
-        }
-        catch { }
-        try { _mutex?.Dispose(); } catch { }
-        _mutex = null;
+        try { _instance?.Dispose(); } catch { }
+        _instance = null;
         base.OnExit(e);
     }
 }

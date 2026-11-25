@@ -296,7 +296,45 @@ public partial class FlyoutWindow : Window
         }
 
         UpdateTileChecks(target.Id);
-        _audioController.SetDefaultPlaybackDevice(target.Id);
+        if (!_audioController.SetDefaultPlaybackDevice(target.Id))
+        {
+            // Windows refused: put the tiles back and say so
+            UpdateTileChecks(_currentDefault?.Id);
+            string name = (sender == TileA ? TileAName : TileBName).Text;
+            ShowNotice($"Couldn't switch to {name}");
+        }
+    }
+
+    private System.Windows.Threading.DispatcherTimer? _noticeTimer;
+
+    /// <summary>Shows a short message in the header line for a few seconds (no dialogs).</summary>
+    public void ShowNotice(string message)
+    {
+        HeaderText.Text = message;
+        HeaderText.SetResourceReference(TextBlock.ForegroundProperty, "FgBrush");
+        HeaderText.ToolTip = "Details are in %APPDATA%\\SoundSwitcher\\errors.log";
+
+        _noticeTimer ??= new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _noticeTimer.Stop();
+        _noticeTimer.Tick -= NoticeTimer_Tick;
+        _noticeTimer.Tick += NoticeTimer_Tick;
+        _noticeTimer.Start();
+    }
+
+    private void NoticeTimer_Tick(object? sender, EventArgs e)
+    {
+        _noticeTimer?.Stop();
+        HeaderText.Text = "Output";
+        HeaderText.ClearValue(TextBlock.ForegroundProperty);
+        HeaderText.ClearValue(ToolTipProperty);
+    }
+
+    private void SaveSettings()
+    {
+        if (!_settingsManager.Save())
+        {
+            ShowNotice("Couldn't save settings");
+        }
     }
 
     private void DeviceAComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -307,7 +345,7 @@ public partial class FlyoutWindow : Window
         {
             _deviceA = selectedA;
             _settingsManager.Settings.FavoriteDeviceA_Id = selectedA.Id;
-            _settingsManager.Save();
+            SaveSettings();
 
             RefreshUI();
         }
@@ -321,7 +359,7 @@ public partial class FlyoutWindow : Window
         {
             _deviceB = selectedB;
             _settingsManager.Settings.FavoriteDeviceB_Id = selectedB.Id;
-            _settingsManager.Save();
+            SaveSettings();
 
             RefreshUI();
         }
@@ -374,14 +412,14 @@ public partial class FlyoutWindow : Window
     {
         if (_isUpdatingUi) return;
         _settingsManager.Settings.LaunchOnStartup = StartupCheckBox.IsChecked == true;
-        _settingsManager.Save();
+        SaveSettings();
     }
 
     private void DirectTrayToggleCheckBox_Changed(object sender, RoutedEventArgs e)
     {
         if (_isUpdatingUi) return;
         _settingsManager.Settings.DirectToggleOnTrayClick = DirectTrayToggleCheckBox.IsChecked == true;
-        _settingsManager.Save();
+        SaveSettings();
     }
 
     private void ThemeRadio_Checked(object sender, RoutedEventArgs e)
@@ -391,7 +429,7 @@ public partial class FlyoutWindow : Window
         if (theme == _settingsManager.Settings.Theme) return;
 
         _settingsManager.Settings.Theme = theme;
-        _settingsManager.Save();
+        SaveSettings();
         ThemeManager.Apply(theme);
     }
 

@@ -43,7 +43,14 @@ public class TrayManager : IDisposable
         {
             if (_settingsManager.Settings.DirectToggleOnTrayClick)
             {
-                _audioController.ToggleBetween(_settingsManager.Settings.FavoriteDeviceA_Id, _settingsManager.Settings.FavoriteDeviceB_Id);
+                bool switched = _audioController.ToggleBetween(_settingsManager.Settings.FavoriteDeviceA_Id, _settingsManager.Settings.FavoriteDeviceB_Id);
+                if (!switched)
+                {
+                    // The flyout is hidden in this mode, so say it where the user clicked
+                    _notifyIcon.ShowBalloonTip(4000, "SoundSwitcher",
+                        "Couldn't switch the output device. Details are in %APPDATA%\\SoundSwitcher\\errors.log.",
+                        ToolTipIcon.Warning);
+                }
             }
             else
             {

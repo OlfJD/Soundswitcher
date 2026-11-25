@@ -147,7 +147,9 @@
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="Output" FontSize="12" Style="{StaticResource Muted}"/>
+                    <!-- Doubles as the notice line ("Couldn't switch to …") for a few seconds -->
+                    <TextBlock x:Name="HeaderText" Text="Output" FontSize="12" Style="{StaticResource Muted}"
+                               TextTrimming="CharacterEllipsis"/>
                     <Button x:Name="SettingsBtn" Grid.Column="1" Style="{StaticResource IconButton}"
                             Click="SettingsBtn_Click" ToolTip="Settings">
                         <Viewbox Width="16" Height="16">

@@ -25,12 +25,16 @@ SoundSwitcher is a high-performance, ultra-lightweight Windows desktop audio swi
    - **Self-Healing Windows Autostart Subsystem**:
      - Resolves the true executable path via `GetExecutablePath()` across single-file publish bundles and standard binaries.
      - Automatically verifies and refreshes `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\SoundSwitcher` on startup and configuration saves, seamlessly healing registry paths if the folder is relocated (e.g., moved to `Documents\Code\Soundswitcher\`).
-     - Ensures all crash logging and file I/O use `AppDomain.CurrentDomain.BaseDirectory` or `%APPDATA%`, preventing silent write crashes during Windows boot when the operating system sets the working directory to `C:\Windows\System32`.
+     - The Run entry is `"<exe>" --autostart` and is only written or removed from settings that are the user's real choice (a normally read `settings.json`, or a change made since). A backup or defaults never touch it.
+   - Saves are atomic (`settings.json.tmp` swapped in with `File.Replace`, previous file kept as `settings.json.bak`) and retried for ~750 ms if the file is locked. An unreadable `settings.json` is kept as `settings.unreadable.json` and the backup is used.
+   - Errors go to `%APPDATA%\SoundSwitcher\errors.log` (`Core/ErrorLog.cs`, capped at 64 KB, newer half kept), never to dialogs.
 
 4. **UI & Vector Visual System (`Views/` & `App.xaml`)**:
    - `FlyoutWindow.xaml` / `.xaml.cs`: Draggable floating flyout with `HWND_TOPMOST` layering, monochrome dark theme, two device tiles (click one to make it the default output), Lucide vector icons, expandable settings panel, and master volume slider.
    - Typeface: Inter (Regular/Medium/SemiBold static TTFs, SIL OFL) embedded as a WPF resource from `Fonts/`, with Segoe UI Variable as fallback.
-   - `App.xaml` / `App.xaml.cs`: Application entry point managing Windows Notification Area (System Tray) icon (`NotifyIcon`), offscreen host window for keeping the WPF message pump alive in tray-only mode, single-instance mutex, and global hotkeys.
+   - `App.xaml` / `App.xaml.cs`: Application entry point managing Windows Notification Area (System Tray) icon (`NotifyIcon`), offscreen host window for keeping the WPF message pump alive in tray-only mode, and single-instance handling (`Core/SingleInstance.cs`: `Local\` mutex plus a "show" event, so launching the exe again opens the running copy's flyout).
+
+5. **Tests (`SoundSwitcher.Tests/`)**: a plain console runner (no NuGet packages). `dotnet run --project SoundSwitcher.Tests` runs the unit tests in a temp folder with a fake startup entry, so the real settings and registry are never touched. Add `-- --app <path to SoundSwitcher.exe>` to also start the real exe twice and check the second-launch behaviour (close any running copy first).
 
 ---
 
@@ -88,4 +92,15 @@ SoundSwitcher is a high-performance, ultra-lightweight Windows desktop audio swi
 - **App icon**: `generate_icon.ps1` (repo root) draws a white tile with a black outline and a large toggle switch, flipped on, in the same flat style as MacroMaster and SmartNotes. Every size is rendered natively with outlines snapped to whole pixels. Output: `SoundSwitcher/Assets/app.ico` / `app.png` and `App.ico` in the repo root.
   - The icon is now the exe icon (`ApplicationIcon`) and embedded as a resource; the tray loads it at the tray's real size. The app no longer writes a generated `App.ico` next to the exe (the old blue gradient `IconGenerator.GenerateAppIcon` is removed).
 - **Tray right-click menu redone (`Views/TrayMenuWindow.xaml`)**: the old WinForms `ContextMenuStrip` (purple/mint 1.0-era colours, device list, toggle, startup) is replaced by a small themed WPF window with a single **Exit** item. It uses the same theme resources, Inter, outline and 110 % scale as the flyout, so it matches Dark and Stormtrooper. It opens at the cursor (bottom-right corner on the cursor, kept on the cursor's monitor, placed in physical pixels for mixed-DPI setups) and closes on Esc or clicking elsewhere. Device switching and settings stay in the flyout. The custom `ModernMenuRenderer` / `ModernColorTable` are removed.
-- **README rewritten**: short and minimal, one screenshot (`docs/screenshot.png`, both themes side by side, rendered from the real XAML at 2x), the new icon, a direct download link to `SoundSwitcher.exe` on the latest release (the old link pointed at a versioned zip name that would break on every release).
+- **README rewritten (1.2.0)**: short and minimal, one screenshot (`docs/screenshot.png`, both themes side by side, rendered from the real XAML at 2x), the new icon, a direct download link to `SoundSwitcher.exe` on the latest release (the old link pointed at a versioned zip name that would break on every release).
+
+### Version 1.2.1 - Safer Settings, Visible Failures, Second Launch (2026-11-25)
+Applied the SoundSwitcher items from `..\Lessons-from-Blur-AutoClicker.md`.
+- **Fixed: a crash during a save could switch autostart off.** `settings.json` was written in place, so a crash or power cut could leave it empty. The next start then loaded defaults and deleted the Windows Run entry, silently losing autostart and the device pair. Saves are now atomic with a `.bak`, an unreadable file falls back to the backup, and the Run entry is only changed from a real choice; otherwise the Start with Windows switch shows what Windows actually has.
+- **Fixed: refused device switches went unnoticed.** `SetDefaultEndpoint`'s HRESULT was ignored, so a refused switch counted as success and the tile showed the wrong device. Every role's result is now checked; on failure the tile goes back, the header shows "Couldn't switch to …" for 5 s (tray direct-toggle shows a balloon instead), and the codes are logged.
+- **Second launch opens the flyout** of the running copy instead of exiting silently. A copy started at sign-in (`--autostart`) still exits quietly. The mutex keeps its old name, so a 1.2.0 copy that is still running is detected too.
+- **errors.log** in `%APPDATA%\SoundSwitcher` replaces the unbounded `crash.log` next to the exe; saving failures show "Couldn't save settings" in the flyout.
+- Settings are sanitised on load (unknown theme → Dark, blank device IDs → none).
+- **Tests**: new `SoundSwitcher.Tests` (16 tests, all passing): atomic save and backup, brief and permanent file locks, broken file with and without backup, first run with an existing Run entry, Run entry repair, autostart off, sanitising, log cap, single instance (including an abandoned claim), a refused switch through real CoreAudio, and the real exe launched twice.
+- Not checked: the "Couldn't switch" notice and balloon on screen (only the code path and log were tested), and whether a running 1.2.0 copy gets detected (relies on Windows putting unprefixed names in the `Local\` namespace).
+- Memory trimming (`MemoryOptimizer`) is unchanged: the lessons suggest measuring whether it helps before removing it.

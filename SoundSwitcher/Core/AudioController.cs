@@ -152,21 +152,44 @@ public class AudioController : IMMNotificationClient, IDisposable
     {
         if (string.IsNullOrEmpty(deviceId)) return false;
 
+        IPolicyConfig? policy = null;
         try
         {
-            var policy = (IPolicyConfig)new CPolicyConfigClient();
-            policy.SetDefaultEndpoint(deviceId, ERole.eConsole);
-            policy.SetDefaultEndpoint(deviceId, ERole.eMultimedia);
-            policy.SetDefaultEndpoint(deviceId, ERole.eCommunications);
-            Marshal.ReleaseComObject(policy);
+            policy = (IPolicyConfig)new CPolicyConfigClient();
 
-            QueueChangeNotification(deviceId);
-            return true;
+            // SetDefaultEndpoint reports failure only through its HRESULT (e.g. the device was
+            // unplugged or disabled after the list was read), so every role's result is checked.
+            int hrConsole = policy.SetDefaultEndpoint(deviceId, ERole.eConsole);
+            int hrMultimedia = policy.SetDefaultEndpoint(deviceId, ERole.eMultimedia);
+            int hrCommunications = policy.SetDefaultEndpoint(deviceId, ERole.eCommunications);
+
+            bool allOk = hrConsole >= 0 && hrMultimedia >= 0 && hrCommunications >= 0;
+            bool anyOk = hrConsole >= 0 || hrMultimedia >= 0 || hrCommunications >= 0;
+
+            if (!allOk)
+            {
+                ErrorLog.Write("Windows refused to switch the output device",
+                    $"{deviceId} (console 0x{hrConsole:X8}, multimedia 0x{hrMultimedia:X8}, communications 0x{hrCommunications:X8})");
+            }
+
+            // A partial switch still changed something: refresh so the UI shows what Windows really uses
+            if (anyOk)
+            {
+                QueueChangeNotification(deviceId);
+            }
+            return allOk;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Failed to set default device: {ex.Message}");
+            ErrorLog.Write("Switching the output device failed", ex.Message);
             return false;
+        }
+        finally
+        {
+            if (policy != null)
+            {
+                Marshal.ReleaseComObject(policy);
+            }
         }
     }
 
